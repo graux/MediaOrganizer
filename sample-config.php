@@ -1,0 +1,14 @@
+<?php
+
+$GLOBALS['MOVIES_FOLDER'] = '/Media/Volumes/Movies';
+$GLOBALS['SERIES_FOLDER'] = '/Media/Volumes/Series';
+$GLOBALS['FOLDER_EXCLUDES'] = array('Torrents','_config');
+$GLOBALS['THEMOVIEDB_KEY'] = '[THEMOVIEDB_KEY]';
+$GLOBALS['THETVDB_KEY'] = '[THETVDB_KEY]';
+
+$GLOBALS['TARGET_FOLDER'] = '/Media/Volumes/Torrents';
+$GLOBALS['OVERWRITE_METADATA'] = false;
+$GLOBALS['MOVE_FILES'] = true;
+$GLOBALS['CREATE_MOVIE_DIRECTORY'] = false;
+$GLOBALS['CREATE_SERIES_DIRECTORY'] = true;
+$GLOBALS['CREATE_SEASON_DIRECTORY'] = true;
