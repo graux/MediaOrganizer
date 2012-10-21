@@ -4,7 +4,7 @@
  * Class to connect to OSDb and retrieve subtitles
  *
  * @author César Rodríguez <kesarr@gmail.com>
- * @example $manager = new SubtitlesManager(); $manager->getSubtitles('Fringe.S05E02.HDTV.x264-LOL.mp4);
+ * @example $manager = new SubtitlesManager(); $manager->getSubtitles('Fringe.S05E02.HDTV.x264-LOL.mp4');
  */
 
 class SubtitlesManager {
