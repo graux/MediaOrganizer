@@ -3,7 +3,7 @@
 /**
  * Description of MovieDbMetadataManager
  *
- * @author Fran
+ * @author Francisco Grau <grau.fran@gmail.com>
  */
 class MovieDbMetadataManager {
     

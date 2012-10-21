@@ -1,0 +1,47 @@
+# Source file or directory to parse
+source: .
+# Directory where to save the generated documentation
+destination: Doc
+# List of allowed file extensions
+extensions: [php]
+# Mask to exclude file or directory from processing
+exclude: []
+# Character set of source files
+charset: UTF-8
+# Main project name prefix
+main: MediaOrganizer
+
+# Title of generated documentation
+title: Media Organizer
+# Element types for search input autocomplete
+autocomplete: [classes, constants, functions]
+
+# Generate documentation for methods and properties with given access level
+accessLevels: [public, protected, private]
+# Generate documentation for elements marked as internal and display internal documentation parts
+internal: Yes
+# Generate documentation for PHP internal classes
+php: No
+# Generate tree view of classes, interfaces and exceptions
+tree: No
+# Generate documentation for deprecated classes, methods, properties and constants
+deprecated: No
+# Generate documentation of tasks
+todo: Yes
+# Generate highlighted source code files
+sourceCode: Yes
+# Add a link to download documentation as a ZIP archive
+download: No
+
+# Wipe out the destination directory first
+wipeout: Yes
+# Don't display scanning and generating messages
+quiet: No
+# Display progressbars
+progressbar: No
+# Use colors
+colors: Yes
+# Check for update
+updateCheck: No
+# Display additional information in case of an error
+debug: Yes

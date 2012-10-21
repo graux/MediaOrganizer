@@ -1,43 +1,57 @@
 <?php
+
 /**
  * Description of TvDbMetadataManager
  *
- * @author Fran
+ * @author Francisco Grau <grau.fran@gmail.com>
  */
-class TvDbMetadataManager {
+class TvDbMetadataManager
+{
     private $ApiKey = null;
     private static $instance = null;
     private $mirrors = array();
-    
+    private $activeMirror = null;
+
     const URL_MIRRORS = 'http://www.thetvdb.com/api/{KEY}/mirrors.xml';
     const URL_SEARCH = 'http://www.thetvdb.com/api/GetSeries.php?seriesname={NAME}';
-    const URL_SERIESDATA = 'http://www.thetvdb.com/api/{KEY}/series/{ID}/en.xml';
-    const URL_SERIESEPISODES = 'http://www.thetvdb.com/api/{KEY}/series/{ID}/all/en.xml';
-    const URL_POSTER = 'http://thetvdb.com/banners/{POSTER}';
-    
+    const URL_SEARCH_BYID = 'http://www.thetvdb.com/api/GetSeriesByRemoteID.php?imdbid={ID}';
+    const URL_SEARCH_IMDB = 'http://www.imdb.com/search/title?title={NAME}&title_type=tv_series';
+    const REGEX_SEARCH_IMDB_ID = '/\/title\/(?P<ID>tt\d{7,7})\//';
+    const URL_SERIESDATA = '{MIRROR}/api/{KEY}/series/{ID}/en.xml';
+    const URL_SERIESEPISODE = '{MIRROR}/api/{KEY}/series/{ID}/default/{SEASON}/{EPISODE}/en.xml';
+    const URL_SERIESPOSTERS = '{MIRROR}/api/{KEY}/series/{ID}/banners.xml';
+    const URL_POSTER = '{MIRROR}/banners/{POSTER}';
+
     private $seriesData = array();
-    
-    private function __construct() {
+
+    private function __construct()
+    {
         $this->ApiKey = $GLOBALS['THETVDB_KEY'];
         $mirrors = $this->requestXml(str_replace('{KEY}', $this->ApiKey, self::URL_MIRRORS));
-        
-        foreach($mirrors as $m){
-            $mask = (string)$m->typemask;
+
+        foreach ($mirrors as $m) {
+            $mask = (string) $m->typemask;
             $this->mirrors[$mask] = $m->mirrorpath;
+            if (empty($this->activeMirror)) {
+                $this->activeMirror = $m->mirrorpath;
+            }
         }
-    }   
+    }
+
     /**
      * 
      * @return TvDbMetadataManager
      */
-    public static function getInstance(){
-        if(is_null(self::$instance)){
+    public static function getInstance()
+    {
+        if (is_null(self::$instance)) {
             self::$instance = new TvDbMetadataManager();
         }
         return self::$instance;
     }
-    
-    private function requestXml($url){
+
+    private function requestXml($url)
+    {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
@@ -45,67 +59,151 @@ class TvDbMetadataManager {
         curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: text/xml"));
         $response = curl_exec($ch);
         curl_close($ch);
-       
-        //error_log($response);
-            
+
+        //error_log('XML for : '.$url."\n".$response."\n");
+
         return simplexml_load_string($response);
     }
-    
+
+    private function requestUrl($url)
+    {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+        curl_setopt($ch, CURLOPT_HEADER, FALSE);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: text/xml"));
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.7; rv:15.0) Gecko/20100101 Firefox/15.0.1');
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return $response;
+    }
+
     /**
      * 
      * @param MediaItemSeries $mediaItem
      */
-    public function fetchMediaItemData($mediaItem){
-        $searchUrl = str_replace('{NAME}', urlencode($mediaItem->name), self::URL_SEARCH);
+    public function fetchMediaItemData($mediaItem)
+    {
+        // The TV DB Does not provide a search, only exact match. Using IMDB search instead
+        /*
+          $searchUrl = str_replace('{NAME}', urlencode($mediaItem->name), self::URL_SEARCH);
+          $searchResults = $this->requestXml($searchUrl);
+         */
+
+        $searchUrl = str_replace('{NAME}', urlencode($mediaItem->name), self::URL_SEARCH_IMDB);
+        if (!empty($mediaItem->year)) {
+            $searchUrl .= '&year=' . $mediaItem->year;
+        }
+        $searchHtml = $this->requestUrl($searchUrl);
+        $matches = array();
+        if (preg_match(self::REGEX_SEARCH_IMDB_ID, $searchHtml, $matches) == false) {
+            return error_log("Cannot find Metadata for " . $mediaItem->filePath . "\n");
+        }
+        $mediaItem->imdbId = $matches['ID'];
+
+        if ($GLOBALS['DEBUG']) {
+            echo('IMDB ID: ' . $mediaItem->imdbId . "\n");
+        }
+
+        $searchUrl = str_replace('{ID}', urlencode($mediaItem->imdbId), self::URL_SEARCH_BYID);
         $searchResults = $this->requestXml($searchUrl);
-        
+
         $seriesData = $searchResults->Series;
         $mediaItem->id = intval($seriesData->seriesid);
-        $mediaItem->overview = (string)$seriesData->Overview;
-        
-        if(empty($this->seriesData[$mediaItem->id])){
-            $this->seriesData[$mediaItem->id] = array('Id' => $mediaItem->id,
-                                        'Overview' => $mediaItem->overview,
-                                        'Episodes' => array());
-            $this->fetchMediaItemEpisodes($mediaItem);
+
+        $seriesUrl = str_replace('{MIRROR}', $this->activeMirror, self::URL_SERIESDATA);
+        $seriesUrl = str_replace('{KEY}', $this->ApiKey, $seriesUrl);
+        $seriesUrl = str_replace('{ID}', $mediaItem->id, $seriesUrl);
+        $seriesXml = $this->requestXml($seriesUrl);
+
+        $seriesData = $seriesXml->Series;
+        $mediaItem->overview = (string) $seriesData->Overview;
+        $mediaItem->originalTitle = (string) $seriesData->SeriesName;
+        $actors = (string) $seriesData->Actors;
+        $mediaItem->actors = explode('|', trim($actors, '|'));
+        $genere = (string) $seriesData->Genre;
+        $mediaItem->genere = explode('|', trim($genere, '|'));
+        $mediaItem->rating = floatval((string) $seriesData->Rating);
+        $mediaItem->director = (string) $seriesData->Director;
+
+        $mediaItem->runTime = intval($seriesData->Runtime);
+
+        $poster = (string) $seriesData->poster;
+        $mediaItem->posterUrl = str_replace('{MIRROR}', $this->activeMirror, str_replace('{POSTER}', $poster, self::URL_POSTER));
+
+        if (empty($this->seriesData[$mediaItem->id])) {
+            $this->seriesData[$mediaItem->id] = array(
+                'Id' => $mediaItem->id,
+                'Title' => $mediaItem->originalTitle,
+                'Backdrops' => array());
         }
         $key = $mediaItem->getEpisodeKey();
         $series = $this->seriesData[$mediaItem->id];
-        $episode = $series['Episodes'][$key];
+        $this->fetchMediaItemEpisode($mediaItem);
+        $this->fetchSeriesBackdrops($mediaItem);
         
-        $mediaItem->episodeOverview = $episode['overview'];
-        $mediaItem->id = $episode['id'];
-        $mediaItem->episodeTitle = $episode['title'];
-        $mediaItem->posterUrl = $series['Poster'];
-        $mediaItem->rating = $series['Rating'];
-        $mediaItem->released = $episode['aired'];
-        $mediaItem->episodeRating = $episode['rating'];
-        $mediaItem->runTime = $series['Runtime'];
+        if(!empty($mediaItem->episodeOverview)){
+            $mediaItem->episodeOverview = preg_replace('/\n+/', "\n", $mediaItem->episodeOverview);
+        }
+        if(!empty($mediaItem->overview)){
+            $mediaItem->overview = preg_replace('/\n+/', "\n", $mediaItem->overview);
+        }
     }
-    public function fetchMediaItemEpisodes($mediaItem){
-        $searchUrl = str_replace('{ID}', $mediaItem->id,str_replace('{KEY}', $this->ApiKey, self::URL_SERIESEPISODES));
+
+    public function fetchMediaItemEpisode($mediaItem)
+    {
+        $searchUrl = str_replace('{ID}', $mediaItem->id, str_replace('{KEY}', $this->ApiKey, self::URL_SERIESEPISODE));
+        $searchUrl = str_replace('{MIRROR}', $this->activeMirror, $searchUrl);
+        $searchUrl = str_replace('{SEASON}', $mediaItem->season, $searchUrl);
+        $searchUrl = str_replace('{EPISODE}', $mediaItem->episode, $searchUrl);
         $searchResults = $this->requestXml($searchUrl);
-        
-        $poster = (string)$searchResults->Series->poster;
-        $this->seriesData[$mediaItem->id]['Poster'] = str_replace('{POSTER}', $poster, self::URL_POSTER);
-        $this->seriesData[$mediaItem->id]['Rating'] = floatval($searchResults->Series->Rating);
-        $this->seriesData[$mediaItem->id]['Runtime'] = intval($searchResults->Series->Runtime);
-        
-        foreach($searchResults as $episode){
-            if($episode->getName() == 'Episode'){
-                $epData = array(
-                    'id' => intval($episode->id),
-                    'aired' => (string)$episode->FirstAired,
-                    'season' => intval($episode->SeasonNumber),
-                    'episode' => intval($episode->EpisodeNumber),
-                    'title' => (string)$episode->EpisodeName,
-                    'overview' => (string)$episode->Overview,
-                    'rating' => floatval($episode->Rating)
-                );
-                $epCode = 'S'.sprintf('%02d',$epData['season']).'E'.sprintf('%02d',$epData['episode']);
-                $this->seriesData[$mediaItem->id]['Episodes'][$epCode] = $epData;
+
+        $loaded = false;
+        if (!empty($searchResults->Episode)) {
+            $episode = $searchResults->Episode;
+            $episodeNumber = intval($episode->EpisodeNumber);
+            $seasonNumber = intval($episode->SeasonNumber);
+            if ($seasonNumber == $mediaItem->season && $episodeNumber == $mediaItem->episode) {
+                $mediaItem->episodeOverview = (string) $episode->Overview;
+                $mediaItem->episodeId = intval($episode->id);
+                $mediaItem->episodeTitle = (string) $episode->EpisodeName;
+                $mediaItem->released = (string) $episode->FirstAired;
+                $mediaItem->episodeRating = floatval($episode->Rating);
+                $directors = (string) $episode->Director;
+                $mediaItem->episodeDirector = explode('|', trim($directors, '|'));
+                $loaded = true;
             }
         }
+        if ($loaded == false) {
+            error_log("No information for episode: " . $mediaItem->toString() . "\n");
+        }
+    }
+
+    public function fetchSeriesBackdrops($mItem)
+    {
+        if (empty($this->seriesData[$mItem->id]['Backdrops'])) {
+            $backdropsUrl = str_replace('{MIRROR}', $this->activeMirror, self::URL_SERIESPOSTERS);
+            $backdropsUrl = str_replace('{KEY}', $this->ApiKey, $backdropsUrl);
+            $backdropsUrl = str_replace('{ID}', $mItem->id, $backdropsUrl);
+            $backdropsXml = $this->requestXml($backdropsUrl);
+            $backdrops = array();
+
+            $backdropBaseUrl = str_replace('{MIRROR}', $this->activeMirror, self::URL_POSTER);
+            $maxBackdrops = empty($GLOBALS['NUM_BACKDROPS']) ? 5 : $GLOBALS['NUM_BACKDROPS'];
+            foreach ($backdropsXml->Banner as $backdropXml) {
+                if (count($backdrops) >= $maxBackdrops) {
+                    break;
+                }
+                $backdrop = (string) $backdropXml->BannerPath;
+                $backdrops[] = str_replace('{POSTER}', $backdrop, $backdropBaseUrl);
+            }
+            $this->seriesData[$mItem->id]['Backdrops'] = $backdrops;
+        }
+        if ($GLOBALS['DEBUG']) {
+            echo count($backdrops) . " backdrops fetched...\n";
+        }
+        $mItem->backdrops = $this->seriesData[$mItem->id]['Backdrops'];
     }
 }
 

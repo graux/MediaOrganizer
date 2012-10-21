@@ -3,13 +3,14 @@
 /**
  * Description of MediaItem
  *
- * @author Fran
+ * @author Francisco Grau <grau.fran@gmail.com>
  */
 abstract class MediaItem
 {
     public $filePath = null;
     public $year = null;
     public $name = null;
+    public $originalFileName = null;
     public $format = null;
     public $extension = null;
     public $overview = null;
@@ -18,11 +19,19 @@ abstract class MediaItem
     public $id = null;
     public $originalTitle = null;
     public $runTime = null;
+    public $director = null;
     public $rating = null;
     private $error = false;
+    public $imdbId = null;
+    public $genere = array();
+    public $actors = array();
+    public $backdrops = array();
+    public $subtitles = array();
 
     const REGEX_SERIES = '/^(?P<Name>.*?)(s|S)\(?(?P<Season>\d\d)_?(e|E)(?P<Episode>\d\d)\)?.*?(?P<Format>(720p)|(1080p))?.*?\.[a-z0-9]{1,4}$/';
     const REGEX_MOVIES = '/^(?P<Name>.*?)(\(?(?P<Year>\d\d\d\d)\)?)(.*?)(?P<Format>(720p)|(1080p))?(.*?)\.[a-z0-9]{1,4}$/';
+
+    public static $mediaSubtitlesExtensions = array('srt', 'ass', 'ssa', 'sub', 'smi');
 
     /**
      * 
@@ -39,8 +48,8 @@ abstract class MediaItem
         if (preg_match(self::REGEX_SERIES, $fileName, $matches) > 0) {
             $mediaItem = new MediaItemSeries();
             $mediaItem->name = $matches['Name'];
-            $mediaItem->season = $matches['Season'];
-            $mediaItem->episode = $matches['Episode'];
+            $mediaItem->season = intval($matches['Season']);
+            $mediaItem->episode = intval($matches['Episode']);
             if (!empty($matches['Format'])) {
                 $mediaItem->format = $matches['Format'];
             }
@@ -57,8 +66,30 @@ abstract class MediaItem
         }
         $mediaItem->filePath = $filePath;
         $mediaItem->extension = Utils::getFileExtension($mediaItem->filePath);
+        $mediaItem->originalFileName = $fileName;
         $mediaItem->fixName();
-        
+
+        if ($GLOBALS['DEBUG']) {
+            echo "Item '" . $mediaItem->originalFileName . " identified as '" . $mediaItem->name . "'\n";
+        }
+
+        // Search subtitles
+        $dir = dirname($mediaItem->filePath);
+        if(file_exists($dir)){
+            $files = scandir($dir);
+            foreach ($files as $file) {
+                if (is_dir($file) === false) {
+                    $extension = Utils::getFileExtension($file);
+                    if (in_array($extension, self::$mediaSubtitlesExtensions)) {
+                        $assocMedia = Utils::changeExtension($file, $mediaItem->extension);
+                        if ($assocMedia === $mediaItem->originalFileName) {
+                            $mediaItem->subtitles[] = realpath($dir . '/' . $file);
+                        }
+                    }
+                }
+            }
+        }
+
         return $mediaItem;
     }
 
@@ -77,12 +108,37 @@ abstract class MediaItem
     }
 
     /**
+     * @return string Fixed file name
+     */
+    public function getNewFilename()
+    {
+        return $this->toString() . '.' . $this->extension;
+    }
+
+    public function getThumbPath()
+    {
+        $extension = empty($GLOBALS['THUMB_EXTENSION']) ? 'jpg' : $GLOBALS['THUMB_EXTENSION'];
+        return Utils::changeExtension($this->filePath, $extension);
+    }
+
+    public function getMetadataPath()
+    {
+        return Utils::changeExtension($this->filePath, 'xml');
+    }
+
+    /**
      * @return string String representation
      */
     abstract public function toString();
 
     /**
-     * @return string Fixed file name
+     * @return array Retrieves all the directories that has to be created to organize this item
      */
-    abstract public function getNewFilename();
+    abstract public function getFolderStructure();
+
+    /**
+     * @return string XML Metadata for the current media item
+     */
+    abstract public function getMetadata();
 }
+
