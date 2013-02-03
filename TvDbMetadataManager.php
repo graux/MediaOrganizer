@@ -60,6 +60,7 @@ class TvDbMetadataManager
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
         curl_setopt($ch, CURLOPT_HEADER, FALSE);
         curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: text/xml"));
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.7; rv:15.0) Gecko/20100101 Firefox/15.0.1');
         $response = curl_exec($ch);
         curl_close($ch);
 
@@ -102,7 +103,7 @@ class TvDbMetadataManager
             $searchHtml = $this->requestUrl($searchUrl);
             $matches = array();
             if (preg_match(self::REGEX_SEARCH_IMDB_ID, $searchHtml, $matches) == false) {
-                return error_log("Cannot find Metadata for " . $mediaItem->filePath . "\n");
+                return error_log("Cannot find Metadata for " . $mediaItem->filePath . ' (' . $searchUrl . ')' . "\n");
             }
             $mediaItem->imdbId = $matches['ID'];
             if ($GLOBALS['DEBUG']) {
@@ -122,57 +123,65 @@ class TvDbMetadataManager
             $searchResults = TvDbMetadataManager::$SeriesCache[$searchUrl];
         }
 
-        $seriesData = $searchResults->Series;
-        $mediaItem->id = intval($seriesData->seriesid);
+        if (is_object($searchResults)) {
+            $seriesData = $searchResults->Series;
+            $mediaItem->id = intval($seriesData->seriesid);
 
-        if ($mediaItem->id > 0) {
-            $seriesUrl = str_replace('{MIRROR}', $this->activeMirror, self::URL_SERIESDATA);
-            $seriesUrl = str_replace('{KEY}', $this->ApiKey, $seriesUrl);
-            $seriesUrl = str_replace('{ID}', $mediaItem->id, $seriesUrl);
+            if (!empty($mediaItem->id) && $mediaItem->id > 0) {
+                $seriesUrl = str_replace('{MIRROR}', $this->activeMirror, self::URL_SERIESDATA);
+                $seriesUrl = str_replace('{KEY}', $this->ApiKey, $seriesUrl);
+                $seriesUrl = str_replace('{ID}', $mediaItem->id, $seriesUrl);
 
-            if (empty(TvDbMetadataManager::$SeriesDataCache[$seriesUrl])) {
-                echo 'Fetching Show Information for ' . $mediaItem->name . ' / ' . $mediaItem->id . "\n";
-                $seriesXml = $this->requestXml($seriesUrl);
-                TvDbMetadataManager::$SeriesDataCache[$seriesUrl] = $seriesXml;
-            } else {
-                $seriesXml = TvDbMetadataManager::$SeriesDataCache[$seriesUrl];
-            }
+                if (empty(TvDbMetadataManager::$SeriesDataCache[$seriesUrl])) {
+                    echo 'Fetching Show Information for ' . $mediaItem->name . ' / ' . $mediaItem->id . "\n";
+                    $seriesXml = $this->requestXml($seriesUrl);
+                    TvDbMetadataManager::$SeriesDataCache[$seriesUrl] = $seriesXml;
+                } else {
+                    $seriesXml = TvDbMetadataManager::$SeriesDataCache[$seriesUrl];
+                }
 
-            $seriesData = $seriesXml->Series;
-            $mediaItem->overview = (string)$seriesData->Overview;
-            $mediaItem->title = (string)$seriesData->SeriesName;
-            $actors = (string)$seriesData->Actors;
-            $mediaItem->actors = explode('|', trim($actors, '|'));
-            $genere = (string)$seriesData->Genre;
-            $mediaItem->genere = explode('|', trim($genere, '|'));
-            $mediaItem->rating = floatval((string)$seriesData->Rating);
-            $mediaItem->directors = (string)$seriesData->Director;
+                $seriesData = $seriesXml->Series;
+                $mediaItem->overview = (string)$seriesData->Overview;
+                $mediaItem->title = (string)$seriesData->SeriesName;
+                $actors = (string)$seriesData->Actors;
+                $mediaItem->actors = explode('|', trim($actors, '|'));
+                $genere = (string)$seriesData->Genre;
+                $mediaItem->genere = explode('|', trim($genere, '|'));
+                $mediaItem->rating = floatval((string)$seriesData->Rating);
+                $mediaItem->directors = (string)$seriesData->Director;
 
-            $mediaItem->runTime = intval($seriesData->Runtime);
+                $mediaItem->runTime = intval($seriesData->Runtime);
 
-            $poster = (string)$seriesData->poster;
-            $mediaItem->posterUrl = str_replace('{MIRROR}', $this->activeMirror, str_replace('{POSTER}', $poster, self::URL_POSTER));
+                $poster = (string)$seriesData->poster;
+                $mediaItem->posterUrl = str_replace('{MIRROR}', $this->activeMirror, str_replace('{POSTER}', $poster, self::URL_POSTER));
 
-            if (empty($this->seriesData[$mediaItem->id])) {
-                $this->seriesData[$mediaItem->id] = array(
-                    'Id' => $mediaItem->id,
-                    'Title' => $mediaItem->title,
-                    'Backdrops' => array());
-            }
-            $key = $mediaItem->getEpisodeKey();
-            $series = $this->seriesData[$mediaItem->id];
-            $this->fetchMediaItemEpisode($mediaItem);
-            $this->fetchSeriesBackdrops($mediaItem);
+                if (empty($this->seriesData[$mediaItem->id])) {
+                    $this->seriesData[$mediaItem->id] = array(
+                        'Id' => $mediaItem->id,
+                        'Title' => $mediaItem->title,
+                        'Backdrops' => array());
+                }
+                $key = $mediaItem->getEpisodeKey();
+                $series = $this->seriesData[$mediaItem->id];
+                $this->fetchMediaItemEpisode($mediaItem);
+                $this->fetchSeriesBackdrops($mediaItem);
 
-            if (!empty($mediaItem->episodeOverview)) {
-                $mediaItem->episodeOverview = preg_replace('/\n+/', "\n", $mediaItem->episodeOverview);
-            }
-            if (!empty($mediaItem->overview)) {
-                $mediaItem->overview = preg_replace('/\n+/', "\n", $mediaItem->overview);
+                if (!empty($mediaItem->episodeOverview)) {
+                    $mediaItem->episodeOverview = preg_replace('/\n+/', "\n", $mediaItem->episodeOverview);
+                }
+                if (!empty($mediaItem->overview)) {
+                    $mediaItem->overview = preg_replace('/\n+/', "\n", $mediaItem->overview);
+                }
             }
         } else {
+            error_log("No information for show: " . $mediaItem->originalFileName . ' (' . $searchUrl . ')' . "\n");
             $mediaItem->error = true;
         }
+
+        if ($mediaItem->metadataProcessed === false) {
+            $mediaItem->error = true;
+        }
+
         return $mediaItem;
     }
 
@@ -187,7 +196,6 @@ class TvDbMetadataManager
         }
         $searchResults = $this->requestXml($searchUrl);
 
-        $loaded = false;
         if (!empty($searchResults->Episode)) {
             $episode = $searchResults->Episode;
             $episodeNumber = intval($episode->EpisodeNumber);
@@ -200,13 +208,13 @@ class TvDbMetadataManager
                 $mediaItem->episodeRating = floatval($episode->Rating);
                 $directors = (string)$episode->Director;
                 $mediaItem->episodeDirector = explode('|', trim($directors, '|'));
-                $loaded = true;
+                $mediaItem->metadataProcessed = true;
                 if ($GLOBALS['DEBUG'] === true) {
                     echo 'Episode information fetched: ' . $mediaItem->toString() . "\n";
                 }
             }
         }
-        if ($loaded == false) {
+        if ($mediaItem->metadataProcessed == false) {
             $mediaItem->error = true;
             error_log("No information for episode: " . $mediaItem->originalFileName . ' (' . $searchUrl . ')' . "\n");
         }

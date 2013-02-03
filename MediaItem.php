@@ -21,13 +21,15 @@ abstract class MediaItem
     public $title = null;
     public $runTime = null;
     public $rating = null;
-    public $error = false;
     public $imdbId = null;
     public $genere = array();
     public $actors = array();
     public $directors = array();
     public $backdrops = array();
     public $subtitles = array();
+    public $metadataProcessed = false;
+    public $error = false;
+    public $skip = false;
 
     const REGEX_SERIES = '/^(?P<Name>.*?)(s|S)\(?(?P<Season>\d\d)_?(e|E)(?P<Episode>\d\d)\)?.*?(?P<Format>(720p)|(1080p))?.*?\.[a-z0-9]{1,4}$/';
     const REGEX_MOVIES = '/^(?P<Name>.*?)(\(?(?P<Year>\d\d\d\d)\)?)(.*?)(?P<Format>(720p)|(1080p))?(.*?)\.[a-z0-9]{1,4}$/';

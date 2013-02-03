@@ -28,9 +28,9 @@ class MediaItemSeries extends MediaItem
     public function toString()
     {
         if (!empty($this->episodeTitle)) {
-            return $this->originalTitle . ' - ' . $this->getEpisodeKey() . ' - ' . $this->episodeTitle;
+            return $this->title . ' - ' . $this->getEpisodeKey() . ' - ' . $this->episodeTitle;
         } else {
-            return $this->originalTitle . ' - ' . $this->getEpisodeKey();
+            return $this->title . ' - ' . $this->getEpisodeKey();
         }
     }
 
@@ -40,7 +40,7 @@ class MediaItemSeries extends MediaItem
         $dirSeason = empty($GLOBALS['CREATE_SEASON_DIRECTORY']) ? true : $GLOBALS['CREATE_SEASON_DIRECTORY'] !== false;
         $structure = array();
         if ($dirSeries) {
-            $folder = $this->originalTitle;
+            $folder = $this->title;
             if ($GLOBALS['WDLIVETV_FOLDERS'] === true) {
                 $folder .= '.mkv';
             }
@@ -62,7 +62,7 @@ class MediaItemSeries extends MediaItem
         $details = new SimpleXMLElement('<details></details>');
         $details->addChild('id', $this->episodeId);
         $details->addChild('title', $this->toString());
-        $details->addChild('series_name', $this->originalTitle);
+        $details->addChild('series_name', $this->title);
         $details->addChild('episode_name', $this->episodeTitle);
         $details->addChild('season_number', $this->season);
         $details->addChild('episode_number', $this->episode);
@@ -100,7 +100,7 @@ class MediaItemSeries extends MediaItem
     {
         $details = new SimpleXMLElement('<details></details>');
         $details->addChild('id', $this->id);
-        $details->addChild('title', $this->originalTitle);
+        $details->addChild('title', $this->title);
         $details->addChild('year', $this->released);
         $details->addChild('runtime', $this->runTime);
         $details->addChild('rating', $this->rating);
@@ -129,7 +129,7 @@ class MediaItemSeries extends MediaItem
     {
         $details = new SimpleXMLElement('<details></details>');
         $details->addChild('id', $this->id);
-        $details->addChild('title', $this->originalTitle . ' - Season ' . $this->season);
+        $details->addChild('title', $this->title . ' - Season ' . $this->season);
         $details->addChild('year', $this->released);
         $details->addChild('runtime', $this->runTime);
         $details->addChild('rating', $this->rating);

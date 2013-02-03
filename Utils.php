@@ -35,7 +35,7 @@ class Utils
 
         $mItem->name = preg_replace('/(\[.*?\]|\(.*?\))/', ' ', $mItem->name);
         $mItem->name = strtr($mItem->name, array('.' => ' ', '_' => ' ', '-' => ' ', '(' => '', ')' => '', '{' => '', '}' => '', '[' => '', ']' => ''));
-        $mItem->name = preg_replace('/(\b|^)(DVDRip|BRRip|BluRayRip|HDTV|dts|x264|xvid|chd|Bdrip|Ext|Proper|Besthd|Bluray)(\b|$)/i', '', $mItem->name);
+        $mItem->name = preg_replace('/(\b|^)(DVDRip|BRRip|BluRayRip|HDTV|dts|x264|xvid|chd|Bdrip|Ext|Proper|Besthd|Bluray|Episode(\s\d+(\sand\d+)?)?)(\b|$)/i', '', $mItem->name);
 
         $match = array();
         if (preg_match('/[1-2]\d\d\d/', $mItem->name, $match) > 0) {

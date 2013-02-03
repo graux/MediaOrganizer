@@ -43,11 +43,20 @@ if (file_exists($targetDir)) {
     $mediaManager->generateMetadata();
     echo "\nFiles Processed: \n";
     $errorItems = array();
+    $skippedItems = array();
     foreach ($files as $f) {
-        if ($f->error === false) {
+        if ($f->metadataProcessed === true) {
             echo "Metadata and Images generated for: " . $f->toString() . "\n";
+        } elseif ($f->skip == true) {
+            $skippedItems[] = $f;
         } else {
             $errorItems[] = $f;
+        }
+    }
+    if (!empty($skippedItems)) {
+        echo "\nSkipped: \n";
+        foreach ($skippedItems as $f) {
+            echo "Item already processed: " . $f->originalFileName . "\n";
         }
     }
     if (!empty($errorItems)) {
@@ -56,6 +65,7 @@ if (file_exists($targetDir)) {
             echo "Error identifying or retrieving data for: " . $f->originalFileName . "\n";
         }
     }
+    echo "\n\n";
 }
 
 /**
@@ -97,22 +107,32 @@ class MediaOrganizer
         }
 
         $errors = 0;
+        $skipped = 0;
         foreach ($this->mediaItems as $item) {
-            if ($GLOBALS['DEBUG']) {
-                echo "\nFetching Data for: " . $item->name . ' (' . $index . '/' . $totalItems . ')' . "\n";
-            }
-            if ($item instanceof MediaItemSeries) {
-                $tvDb->fetchMediaItemData($item);
+            $metadataFilePath = Utils::changeExtension($item->filePath, 'xml');
+            if (file_exists($metadataFilePath) && $GLOBALS['SKIP_IF_METADATA_PRESENT'] === true) {
+                $item->skip = true;
+                if ($GLOBALS['DEBUG']) {
+                    echo "\nItem Skipped: " . $item->name . ' (' . $index . '/' . $totalItems . ')' . "\n";
+                }
+                $skipped++;
             } else {
-                $tmDb->fetchMediaItemData($item);
-            }
-            if ($item->error) {
-                $errors++;
+                if ($GLOBALS['DEBUG']) {
+                    echo "\nFetching Data for: " . $item->name . ' (' . $index . '/' . $totalItems . ')' . "\n";
+                }
+                if ($item instanceof MediaItemSeries) {
+                    $tvDb->fetchMediaItemData($item);
+                } else {
+                    $tmDb->fetchMediaItemData($item);
+                }
+                if ($item->error) {
+                    $errors++;
+                }
             }
             $index++;
         }
         if ($GLOBALS['DEBUG']) {
-            echo "\n\nMetadata for " . ($totalItems - $errors) . " of " . $totalItems . " items found.\n\n";
+            echo "\n\nMetadata for " . ($totalItems - ($errors + $skipped)) . " of " . $totalItems . " items found.\n\n";
         }
     }
 
@@ -155,7 +175,7 @@ class MediaOrganizer
     {
         $itemPath = null;
         foreach ($this->mediaItems as $mItem) {
-            if ($mItem->error == true) {
+            if ($mItem->metadataProcessed == false || $mItem->error == true || $mItem->skip == true) {
                 continue;
             }
             if (get_class($mItem) == 'MediaItemSeries') {
@@ -260,6 +280,9 @@ class MediaOrganizer
     public function downloadPosters()
     {
         foreach ($this->mediaItems as $mItem) {
+            if ($mItem->error === true || $mItem->skip === true) {
+                continue;
+            }
             $targetPath = $mItem->getThumbPath();
             if (empty($this->downloadedFiles[$targetPath])) {
                 if (file_exists($targetPath) === false) {
@@ -307,6 +330,9 @@ class MediaOrganizer
     public function generateMetadata()
     {
         foreach ($this->mediaItems as $mItem) {
+            if ($mItem->error === true || $mItem->skip === true) {
+                continue;
+            }
             $targetPath = $mItem->getMetadataPath();
             $metadata = $mItem->getMetadata();
             $this->createFile($targetPath, $metadata);

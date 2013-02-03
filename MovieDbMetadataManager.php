@@ -89,6 +89,7 @@ class MovieDbMetadataManager
                 $mediaItem->posterUrl = str_replace('{POSTER}', (string)$firstResult['poster_path'], $mediaItem->posterUrl);
                 $mediaItem->runTime = intval($firstResult['runtime']);
                 $mediaItem->rating = floatval($firstResult['vote_average']);
+                $mediaItem->metadataProcessed = true;
                 $mediaItem->error = false;
                 echo('Movie Information Fetched for: ' . $mediaItem->toString(true) . "\n");
 
@@ -124,7 +125,8 @@ class MovieDbMetadataManager
             }
         }
 
-        if ($mediaItem->error == true) {
+        if ($mediaItem->metadataProcessed === false) {
+            $mediaItem->error = true;
             error_log('Error retrieving information for: ' . $mediaItem->originalFileName . ' (' . $searchUrl . ')' . "\n");
         }
     }

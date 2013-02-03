@@ -9,7 +9,7 @@ $GLOBALS['THETVDB_KEY'] = '[THETVDB_KEY]';
 $GLOBALS['DEBUG'] = true;
 $GLOBALS['DRY_RUN'] = true;
 $GLOBALS['TARGET_FOLDER'] = '/Media/Volumes/Torrents';
-$GLOBALS['OVERWRITE_METADATA'] = false;
+$GLOBALS['SKIP_IF_METADATA_PRESENT'] = false;
 $GLOBALS['MOVE_FILES'] = true;
 $GLOBALS['CREATE_MOVIE_DIRECTORY'] = false;
 $GLOBALS['CREATE_SERIES_DIRECTORY'] = true;
@@ -22,5 +22,7 @@ $GLOBALS['DOWNLOAD_BACKDROPS'] = true;
 $GLOBALS['TIMEZONE'] = 'Europe/Madrid';
 
 $GLOBALS['NAME_PATCHING'] = array(
-    'Shameless US' => 'Shameless'
+    'Shameless US' => 'Shameless',
+    'Avatar The Legend Of Korra' => 'The Legend Of Korra',
+    'Wilfred US' => 'Wilfred'
 );
