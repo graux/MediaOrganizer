@@ -17,7 +17,7 @@ class MediaItemSeries extends MediaItem
 
     protected function __construct()
     {
-        
+
     }
 
     public function getEpisodeKey()
@@ -27,7 +27,11 @@ class MediaItemSeries extends MediaItem
 
     public function toString()
     {
-        return $this->originalTitle . ' - ' . $this->getEpisodeKey() . ' - ' . $this->episodeTitle;
+        if (!empty($this->episodeTitle)) {
+            return $this->originalTitle . ' - ' . $this->getEpisodeKey() . ' - ' . $this->episodeTitle;
+        } else {
+            return $this->originalTitle . ' - ' . $this->getEpisodeKey();
+        }
     }
 
     public function getFolderStructure()
@@ -40,7 +44,7 @@ class MediaItemSeries extends MediaItem
             if ($GLOBALS['WDLIVETV_FOLDERS'] === true) {
                 $folder .= '.mkv';
             }
-            $structure[] = $folder;
+            $structure[] = Utils::getValidFileSystemString($folder);
         }
         if ($dirSeason) {
             $pattern = empty($GLOBALS['SEASON_DIRECTORY_PATERN']) ? 'Season {N}' : $GLOBALS['SEASON_DIRECTORY_PATERN'];

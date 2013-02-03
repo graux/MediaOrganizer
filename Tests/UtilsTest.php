@@ -18,7 +18,7 @@ class UtilsTest extends PHPUnit_Framework_TestCase
      */
     protected function tearDown()
     {
-        
+
     }
 
     /**
@@ -36,12 +36,15 @@ class UtilsTest extends PHPUnit_Framework_TestCase
     }
 
     /**
-     * @covers \Utils::fixName
-     * @todo
+     * @covers \Utils::getNewFilename
      */
-    public function testFixName()
+    public function testGetNewFilename()
     {
-        
+        $original = 'The lord of the rings: the fellowship of the ring - how is this?, | is it working \\ or not / eh?';
+        $expected = 'The lord of the rings the fellowship of the ring - how is this - is it working - or not - eh';
+        $actual = Utils::getValidFileSystemString($original);
+
+        $this->assertEquals($expected, $actual);
     }
 }
 

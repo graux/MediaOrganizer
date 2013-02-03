@@ -2,10 +2,12 @@
 
 $GLOBALS['MOVIES_FOLDER'] = '/Media/Volumes/Movies';
 $GLOBALS['SERIES_FOLDER'] = '/Media/Volumes/Series';
-$GLOBALS['FOLDER_EXCLUDES'] = array('Torrents','_config');
+$GLOBALS['FOLDER_EXCLUDES'] = array('Torrents', '_config');
 $GLOBALS['THEMOVIEDB_KEY'] = '[THEMOVIEDB_KEY]';
 $GLOBALS['THETVDB_KEY'] = '[THETVDB_KEY]';
 
+$GLOBALS['DEBUG'] = true;
+$GLOBALS['DRY_RUN'] = true;
 $GLOBALS['TARGET_FOLDER'] = '/Media/Volumes/Torrents';
 $GLOBALS['OVERWRITE_METADATA'] = false;
 $GLOBALS['MOVE_FILES'] = true;
@@ -17,3 +19,8 @@ $GLOBALS['THUMB_EXTENSION'] = 'metathumb';
 $GLOBALS['WDLIVETV_FOLDERS'] = true;
 $GLOBALS['NUM_BACKDROPS'] = 5;
 $GLOBALS['DOWNLOAD_BACKDROPS'] = true;
+$GLOBALS['TIMEZONE'] = 'Europe/Madrid';
+
+$GLOBALS['NAME_PATCHING'] = array(
+    'Shameless US' => 'Shameless'
+);

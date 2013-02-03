@@ -9,3 +9,4 @@ require_once '../MediaItemSeries.php';
 
 require_once '../config.php';
 
+date_default_timezone_set($GLOBALS['TIMEZONE']);

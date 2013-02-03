@@ -13,7 +13,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -31,22 +31,36 @@ $targetDir = $argv[1];
 
 require_once 'config.php';
 
+date_default_timezone_set($GLOBALS['TIMEZONE']);
+
 if (file_exists($targetDir)) {
     $targetDir = realpath($targetDir);
     $mediaManager = new MediaOrganizer($targetDir);
     $mediaManager->fetchMediaItemsData();
     $files = $mediaManager->getMediaItems();
-    $mediaManager->organizeFiles($targetDir, $targetDir);
+    $mediaManager->organizeFiles($GLOBALS['SERIES_FOLDER'], $GLOBALS['MOVIES_FOLDER']);
     $mediaManager->downloadPosters();
     $mediaManager->generateMetadata();
+    echo "\nFiles Processed: \n";
+    $errorItems = array();
     foreach ($files as $f) {
-        echo "Metadata and Images generated for: " . $f->toString() . "\n";
+        if ($f->error === false) {
+            echo "Metadata and Images generated for: " . $f->toString() . "\n";
+        } else {
+            $errorItems[] = $f;
+        }
+    }
+    if (!empty($errorItems)) {
+        echo "\nErrors: \n";
+        foreach ($errorItems as $f) {
+            echo "Error identifying or retrieving data for: " . $f->originalFileName . "\n";
+        }
     }
 }
 
 /**
  * MediaOrganizer Class
- * 
+ *
  * @author Francisco Grau <grau.fran@gmail.com>
  */
 class MediaOrganizer
@@ -76,15 +90,29 @@ class MediaOrganizer
     {
         $tvDb = TvDbMetadataManager::getInstance();
         $tmDb = MovieDbMetadataManager::getInstance();
+        $totalItems = count($this->mediaItems);
+        $index = 1;
+        if ($GLOBALS['DEBUG']) {
+            echo "\nProcessing Media Items (" . $totalItems . "):\n";
+        }
+
+        $errors = 0;
         foreach ($this->mediaItems as $item) {
             if ($GLOBALS['DEBUG']) {
-                echo "Fetching Data for: " . $item->name . "\n";
+                echo "\nFetching Data for: " . $item->name . ' (' . $index . '/' . $totalItems . ')' . "\n";
             }
             if ($item instanceof MediaItemSeries) {
                 $tvDb->fetchMediaItemData($item);
             } else {
                 $tmDb->fetchMediaItemData($item);
             }
+            if ($item->error) {
+                $errors++;
+            }
+            $index++;
+        }
+        if ($GLOBALS['DEBUG']) {
+            echo "\n\nMetadata for " . ($totalItems - $errors) . " of " . $totalItems . " items found.\n\n";
         }
     }
 
@@ -127,14 +155,17 @@ class MediaOrganizer
     {
         $itemPath = null;
         foreach ($this->mediaItems as $mItem) {
+            if ($mItem->error == true) {
+                continue;
+            }
             if (get_class($mItem) == 'MediaItemSeries') {
                 if (file_exists($seriesFolder) === false) {
-                    mkdir($seriesFolder);
+                    $this->mkDir($seriesFolder);
                 }
                 $itemPath = $seriesFolder;
             } else {
                 if (file_exists($moviesFolder) === false) {
-                    mkdir($moviesFolder);
+                    $this->mkDir($moviesFolder);
                 }
                 $itemPath = $moviesFolder;
             }
@@ -143,24 +174,86 @@ class MediaOrganizer
             foreach ($folderStructure as $folder) {
                 $itemPath = $itemPath . '/' . $folder;
                 if (file_exists($itemPath) === false) {
-                    mkdir($itemPath);
+                    $this->mkDir($itemPath);
                 }
             }
             $itemPath = $itemPath . '/' . $mItem->getNewFilename();
             if ($mItem->filePath != $itemPath) {
-                rename($mItem->filePath, $itemPath);
+                $this->moveFile($mItem->filePath, $itemPath);
                 foreach ($mItem->subtitles as $sub) {
                     $itemExt = Utils::getFileExtension($sub);
                     $targetSub = Utils::changeExtension($itemPath, $itemExt);
-                    rename($sub, $targetSub);
+                    $this->moveFile($sub, $targetSub);
                 }
                 $oldDir = dirname($mItem->filePath);
-                $files = scandir($oldDir);
-                if (count($files) == 2) {
-                    rmdir($oldDir);
-                }
+                $this->rmDir($oldDir);
                 $mItem->filePath = $itemPath;
             }
+        }
+    }
+
+    private function mkDir(&$dirPath)
+    {
+        if ($GLOBALS['DRY_RUN'] === false) {
+            mkdir($dirPath);
+        }
+        if ($GLOBALS['DEBUG'] === true) {
+            echo '[+] MkDir: ' . $dirPath . "\n";
+        }
+    }
+
+    private function moveFile($source, &$target)
+    {
+        if ($source == $target) {
+            return;
+        }
+
+        if ($GLOBALS['DRY_RUN'] === false) {
+            $dotPos = strrpos($target, '.');
+            $originalTarget = substr($target, 0, $dotPos);
+            $extension = substr($target, $dotPos + 1);
+            $index = 2;
+            while (file_exists($target)) {
+                $target = $originalTarget . ' (' . $index . ').' . $extension;
+                $index++;
+            }
+            rename($source, $target);
+        }
+        if ($GLOBALS['DEBUG'] === true) {
+            echo '[*] MoveFile: ' . $source . ' => ' . $target . "\n";
+        }
+    }
+
+    private function rmDir($dirPath)
+    {
+        if ($GLOBALS['DRY_RUN'] === false) {
+            $files = scandir($dirPath);
+            if (count($files) == 2) {
+                rmdir($dirPath);
+            }
+        }
+        if ($GLOBALS['DEBUG'] === true) {
+            echo '[-] RmDir: ' . $dirPath . "\n";
+        }
+    }
+
+    private function copyFile($source, $target)
+    {
+        if ($GLOBALS['DRY_RUN'] === false) {
+            copy($source, $target);
+        }
+        if ($GLOBALS['DEBUG'] === true) {
+            echo '[*] CopyFile: ' . $source . ' => ' . $target . "\n";
+        }
+    }
+
+    private function createFile($filePath, $contents)
+    {
+        if ($GLOBALS['DRY_RUN'] === false) {
+            file_put_contents($filePath, $contents);
+        }
+        if ($GLOBALS['DEBUG'] === true) {
+            echo '[+] CreateFile: ' . $filePath . ' : ' . substr($contents, 0, 100) . "\n";
         }
     }
 
@@ -174,32 +267,32 @@ class MediaOrganizer
                 }
                 $this->downloadedFiles[$mItem->posterUrl] = $targetPath;
             } else {
-                copy($this->downloadedFiles[$mItem->posterUrl], $targetPath);
+                $this->copyFile($this->downloadedFiles[$mItem->posterUrl], $targetPath);
             }
             $dirPath = dirname($mItem->filePath);
             if (get_class($mItem) == 'MediaItemSeries' && $GLOBALS['CREATE_SERIES_DIRECTORY']) {
                 $dirPath = dirname($targetPath);
-                if($GLOBALS['CREATE_SEASON_DIRECTORY']){
-                    $filename = $dirPath.'/folder.jpg';
+                if ($GLOBALS['CREATE_SEASON_DIRECTORY']) {
+                    $filename = $dirPath . '/folder.jpg';
                     if (file_exists($filename) === false) {
-                        copy($targetPath, $filename);
+                        $this->copyFile($targetPath, $filename);
                     }
                     $dirPath = dirname($dirPath);
                 }
-                $filename = $dirPath.'/folder.jpg';
+                $filename = $dirPath . '/folder.jpg';
                 if (file_exists($filename) === false) {
-                    copy($targetPath, $dirPath.'/folder.jpg');
+                    $this->copyFile($targetPath, $dirPath . '/folder.jpg');
                 }
             }
             if ($GLOBALS['DOWNLOAD_BACKDROPS']) {
                 $index = 1;
                 $dir = $dirPath . '/.backdrops';
                 if (file_exists($dir) === false) {
-                    mkdir($dir);
+                    $this->mkDir($dir);
                 }
                 $newBackdrops = array();
                 foreach ($mItem->backdrops as $url) {
-                    $backdropFilePath = $dir . '/' . $mItem->originalTitle . ' - ' . $index . '.jpg';
+                    $backdropFilePath = $dir . '/' . $mItem->title . ' - ' . $index . '.jpg';
                     if (file_exists($backdropFilePath) === false) {
                         Utils::downloadThumbnail($url, $backdropFilePath);
                     }
@@ -216,7 +309,7 @@ class MediaOrganizer
         foreach ($this->mediaItems as $mItem) {
             $targetPath = $mItem->getMetadataPath();
             $metadata = $mItem->getMetadata();
-            file_put_contents($targetPath, $metadata);
+            $this->createFile($targetPath, $metadata);
 
             if ($GLOBALS['CREATE_SERIES_DIRECTORY'] && $GLOBALS['WDLIVETV_FOLDERS']) {
                 if (get_class($mItem) == 'MediaItemSeries') {
@@ -225,14 +318,14 @@ class MediaOrganizer
                         $seasonMetadataFilePath = Utils::changeExtension($dir, 'xml');
                         if (file_exists($seasonMetadataFilePath) === false) {
                             $seasonMetadata = $mItem->getSeriesSeasonMetadata();
-                            file_put_contents($seasonMetadataFilePath, $seasonMetadata);
+                            $this->createFile($seasonMetadataFilePath, $seasonMetadata);
                         }
                         $dir = dirname($dir);
                     }
                     $seriesMetadataFilePath = Utils::changeExtension($dir, 'xml');
                     if (file_exists($seriesMetadataFilePath) === false) {
                         $seriesMetadata = $mItem->getSeriesMetadata($dir);
-                        file_put_contents($seriesMetadataFilePath, $seriesMetadata);
+                        $this->createFile($seriesMetadataFilePath, $seriesMetadata);
                     }
                 }
             }

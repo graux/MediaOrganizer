@@ -18,13 +18,14 @@ abstract class MediaItem
     public $posterUrl = null;
     public $id = null;
     public $originalTitle = null;
+    public $title = null;
     public $runTime = null;
-    public $director = null;
     public $rating = null;
-    private $error = false;
+    public $error = false;
     public $imdbId = null;
     public $genere = array();
     public $actors = array();
+    public $directors = array();
     public $backdrops = array();
     public $subtitles = array();
 
@@ -34,7 +35,7 @@ abstract class MediaItem
     public static $mediaSubtitlesExtensions = array('srt', 'ass', 'ssa', 'sub', 'smi');
 
     /**
-     * 
+     *
      * @param string $filePath
      * @return MediaItem
      */
@@ -75,7 +76,7 @@ abstract class MediaItem
 
         // Search subtitles
         $dir = dirname($mediaItem->filePath);
-        if(file_exists($dir)){
+        if (file_exists($dir)) {
             $files = scandir($dir);
             foreach ($files as $file) {
                 if (is_dir($file) === false) {
@@ -102,7 +103,7 @@ abstract class MediaItem
     {
         if (empty($this->year)) {
             $time = strtotime($this->released);
-            $this->year = date('YY', $time);
+            $this->year = date('Y', $time);
         }
         return $this->year;
     }
@@ -112,7 +113,8 @@ abstract class MediaItem
      */
     public function getNewFilename()
     {
-        return $this->toString() . '.' . $this->extension;
+        $str = $this->toString() . '.' . $this->extension;
+        return Utils::getValidFileSystemString($str);
     }
 
     public function getThumbPath()

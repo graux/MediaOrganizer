@@ -22,6 +22,9 @@ class TvDbMetadataManager
     const URL_SERIESPOSTERS = '{MIRROR}/api/{KEY}/series/{ID}/banners.xml';
     const URL_POSTER = '{MIRROR}/banners/{POSTER}';
 
+    private static $ImdbCache = array();
+    private static $SeriesCache = array();
+    private static $SeriesDataCache = array();
     private $seriesData = array();
 
     private function __construct()
@@ -30,7 +33,7 @@ class TvDbMetadataManager
         $mirrors = $this->requestXml(str_replace('{KEY}', $this->ApiKey, self::URL_MIRRORS));
 
         foreach ($mirrors as $m) {
-            $mask = (string) $m->typemask;
+            $mask = (string)$m->typemask;
             $this->mirrors[$mask] = $m->mirrorpath;
             if (empty($this->activeMirror)) {
                 $this->activeMirror = $m->mirrorpath;
@@ -39,7 +42,7 @@ class TvDbMetadataManager
     }
 
     /**
-     * 
+     *
      * @return TvDbMetadataManager
      */
     public static function getInstance()
@@ -80,7 +83,6 @@ class TvDbMetadataManager
     }
 
     /**
-     * 
      * @param MediaItemSeries $mediaItem
      */
     public function fetchMediaItemData($mediaItem)
@@ -95,60 +97,83 @@ class TvDbMetadataManager
         if (!empty($mediaItem->year)) {
             $searchUrl .= '&year=' . $mediaItem->year;
         }
-        $searchHtml = $this->requestUrl($searchUrl);
-        $matches = array();
-        if (preg_match(self::REGEX_SEARCH_IMDB_ID, $searchHtml, $matches) == false) {
-            return error_log("Cannot find Metadata for " . $mediaItem->filePath . "\n");
-        }
-        $mediaItem->imdbId = $matches['ID'];
 
-        if ($GLOBALS['DEBUG']) {
-            echo('IMDB ID: ' . $mediaItem->imdbId . "\n");
+        if (empty(TvDbMetadataManager::$ImdbCache[$searchUrl])) {
+            $searchHtml = $this->requestUrl($searchUrl);
+            $matches = array();
+            if (preg_match(self::REGEX_SEARCH_IMDB_ID, $searchHtml, $matches) == false) {
+                return error_log("Cannot find Metadata for " . $mediaItem->filePath . "\n");
+            }
+            $mediaItem->imdbId = $matches['ID'];
+            if ($GLOBALS['DEBUG']) {
+                echo('IMDB ID: ' . $mediaItem->imdbId . "\n");
+            }
+            TvDbMetadataManager::$ImdbCache[$searchUrl] = $mediaItem->imdbId;
+        } else {
+            $mediaItem->imdbId = TvDbMetadataManager::$ImdbCache[$searchUrl];
         }
 
         $searchUrl = str_replace('{ID}', urlencode($mediaItem->imdbId), self::URL_SEARCH_BYID);
-        $searchResults = $this->requestXml($searchUrl);
+        if (empty(TvDbMetadataManager::$SeriesCache[$searchUrl])) {
+            echo 'Fetching TvDB show information for IMDB ID: ' . $mediaItem->imdbId . "\n";
+            $searchResults = $this->requestXml($searchUrl);
+            TvDbMetadataManager::$SeriesCache[$searchUrl] = $searchResults;
+        } else {
+            $searchResults = TvDbMetadataManager::$SeriesCache[$searchUrl];
+        }
 
         $seriesData = $searchResults->Series;
         $mediaItem->id = intval($seriesData->seriesid);
 
-        $seriesUrl = str_replace('{MIRROR}', $this->activeMirror, self::URL_SERIESDATA);
-        $seriesUrl = str_replace('{KEY}', $this->ApiKey, $seriesUrl);
-        $seriesUrl = str_replace('{ID}', $mediaItem->id, $seriesUrl);
-        $seriesXml = $this->requestXml($seriesUrl);
+        if ($mediaItem->id > 0) {
+            $seriesUrl = str_replace('{MIRROR}', $this->activeMirror, self::URL_SERIESDATA);
+            $seriesUrl = str_replace('{KEY}', $this->ApiKey, $seriesUrl);
+            $seriesUrl = str_replace('{ID}', $mediaItem->id, $seriesUrl);
 
-        $seriesData = $seriesXml->Series;
-        $mediaItem->overview = (string) $seriesData->Overview;
-        $mediaItem->originalTitle = (string) $seriesData->SeriesName;
-        $actors = (string) $seriesData->Actors;
-        $mediaItem->actors = explode('|', trim($actors, '|'));
-        $genere = (string) $seriesData->Genre;
-        $mediaItem->genere = explode('|', trim($genere, '|'));
-        $mediaItem->rating = floatval((string) $seriesData->Rating);
-        $mediaItem->director = (string) $seriesData->Director;
+            if (empty(TvDbMetadataManager::$SeriesDataCache[$seriesUrl])) {
+                echo 'Fetching Show Information for ' . $mediaItem->name . ' / ' . $mediaItem->id . "\n";
+                $seriesXml = $this->requestXml($seriesUrl);
+                TvDbMetadataManager::$SeriesDataCache[$seriesUrl] = $seriesXml;
+            } else {
+                $seriesXml = TvDbMetadataManager::$SeriesDataCache[$seriesUrl];
+            }
 
-        $mediaItem->runTime = intval($seriesData->Runtime);
+            $seriesData = $seriesXml->Series;
+            $mediaItem->overview = (string)$seriesData->Overview;
+            $mediaItem->title = (string)$seriesData->SeriesName;
+            $actors = (string)$seriesData->Actors;
+            $mediaItem->actors = explode('|', trim($actors, '|'));
+            $genere = (string)$seriesData->Genre;
+            $mediaItem->genere = explode('|', trim($genere, '|'));
+            $mediaItem->rating = floatval((string)$seriesData->Rating);
+            $mediaItem->directors = (string)$seriesData->Director;
 
-        $poster = (string) $seriesData->poster;
-        $mediaItem->posterUrl = str_replace('{MIRROR}', $this->activeMirror, str_replace('{POSTER}', $poster, self::URL_POSTER));
+            $mediaItem->runTime = intval($seriesData->Runtime);
 
-        if (empty($this->seriesData[$mediaItem->id])) {
-            $this->seriesData[$mediaItem->id] = array(
-                'Id' => $mediaItem->id,
-                'Title' => $mediaItem->originalTitle,
-                'Backdrops' => array());
+            $poster = (string)$seriesData->poster;
+            $mediaItem->posterUrl = str_replace('{MIRROR}', $this->activeMirror, str_replace('{POSTER}', $poster, self::URL_POSTER));
+
+            if (empty($this->seriesData[$mediaItem->id])) {
+                $this->seriesData[$mediaItem->id] = array(
+                    'Id' => $mediaItem->id,
+                    'Title' => $mediaItem->title,
+                    'Backdrops' => array());
+            }
+            $key = $mediaItem->getEpisodeKey();
+            $series = $this->seriesData[$mediaItem->id];
+            $this->fetchMediaItemEpisode($mediaItem);
+            $this->fetchSeriesBackdrops($mediaItem);
+
+            if (!empty($mediaItem->episodeOverview)) {
+                $mediaItem->episodeOverview = preg_replace('/\n+/', "\n", $mediaItem->episodeOverview);
+            }
+            if (!empty($mediaItem->overview)) {
+                $mediaItem->overview = preg_replace('/\n+/', "\n", $mediaItem->overview);
+            }
+        } else {
+            $mediaItem->error = true;
         }
-        $key = $mediaItem->getEpisodeKey();
-        $series = $this->seriesData[$mediaItem->id];
-        $this->fetchMediaItemEpisode($mediaItem);
-        $this->fetchSeriesBackdrops($mediaItem);
-        
-        if(!empty($mediaItem->episodeOverview)){
-            $mediaItem->episodeOverview = preg_replace('/\n+/', "\n", $mediaItem->episodeOverview);
-        }
-        if(!empty($mediaItem->overview)){
-            $mediaItem->overview = preg_replace('/\n+/', "\n", $mediaItem->overview);
-        }
+        return $mediaItem;
     }
 
     public function fetchMediaItemEpisode($mediaItem)
@@ -157,6 +182,9 @@ class TvDbMetadataManager
         $searchUrl = str_replace('{MIRROR}', $this->activeMirror, $searchUrl);
         $searchUrl = str_replace('{SEASON}', $mediaItem->season, $searchUrl);
         $searchUrl = str_replace('{EPISODE}', $mediaItem->episode, $searchUrl);
+        if ($GLOBALS['DEBUG'] === true) {
+            echo 'Fetching Episode information: ' . $mediaItem->toString() . "\n";
+        }
         $searchResults = $this->requestXml($searchUrl);
 
         $loaded = false;
@@ -165,29 +193,36 @@ class TvDbMetadataManager
             $episodeNumber = intval($episode->EpisodeNumber);
             $seasonNumber = intval($episode->SeasonNumber);
             if ($seasonNumber == $mediaItem->season && $episodeNumber == $mediaItem->episode) {
-                $mediaItem->episodeOverview = (string) $episode->Overview;
+                $mediaItem->episodeOverview = (string)$episode->Overview;
                 $mediaItem->episodeId = intval($episode->id);
-                $mediaItem->episodeTitle = (string) $episode->EpisodeName;
-                $mediaItem->released = (string) $episode->FirstAired;
+                $mediaItem->episodeTitle = (string)$episode->EpisodeName;
+                $mediaItem->released = (string)$episode->FirstAired;
                 $mediaItem->episodeRating = floatval($episode->Rating);
-                $directors = (string) $episode->Director;
+                $directors = (string)$episode->Director;
                 $mediaItem->episodeDirector = explode('|', trim($directors, '|'));
                 $loaded = true;
+                if ($GLOBALS['DEBUG'] === true) {
+                    echo 'Episode information fetched: ' . $mediaItem->toString() . "\n";
+                }
             }
         }
         if ($loaded == false) {
-            error_log("No information for episode: " . $mediaItem->toString() . "\n");
+            $mediaItem->error = true;
+            error_log("No information for episode: " . $mediaItem->originalFileName . ' (' . $searchUrl . ')' . "\n");
         }
     }
 
     public function fetchSeriesBackdrops($mItem)
     {
+        $backdrops = array();
         if (empty($this->seriesData[$mItem->id]['Backdrops'])) {
+            if ($GLOBALS['DEBUG'] === true) {
+                echo 'Fetching Backdrops...' . "\n";
+            }
             $backdropsUrl = str_replace('{MIRROR}', $this->activeMirror, self::URL_SERIESPOSTERS);
             $backdropsUrl = str_replace('{KEY}', $this->ApiKey, $backdropsUrl);
             $backdropsUrl = str_replace('{ID}', $mItem->id, $backdropsUrl);
             $backdropsXml = $this->requestXml($backdropsUrl);
-            $backdrops = array();
 
             $backdropBaseUrl = str_replace('{MIRROR}', $this->activeMirror, self::URL_POSTER);
             $maxBackdrops = empty($GLOBALS['NUM_BACKDROPS']) ? 5 : $GLOBALS['NUM_BACKDROPS'];
@@ -195,14 +230,15 @@ class TvDbMetadataManager
                 if (count($backdrops) >= $maxBackdrops) {
                     break;
                 }
-                $backdrop = (string) $backdropXml->BannerPath;
+                $backdrop = (string)$backdropXml->BannerPath;
                 $backdrops[] = str_replace('{POSTER}', $backdrop, $backdropBaseUrl);
             }
             $this->seriesData[$mItem->id]['Backdrops'] = $backdrops;
+            if ($GLOBALS['DEBUG'] === true) {
+                echo count($backdrops) . " backdrops fetched...\n";
+            }
         }
-        if ($GLOBALS['DEBUG']) {
-            echo count($backdrops) . " backdrops fetched...\n";
-        }
+
         $mItem->backdrops = $this->seriesData[$mItem->id]['Backdrops'];
     }
 }

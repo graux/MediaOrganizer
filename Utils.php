@@ -14,7 +14,7 @@ class Utils
     }
 
     /**
-     * 
+     *
      * @param MediaItem $mItem
      */
     public static function fixName($mItem)
@@ -32,9 +32,11 @@ class Utils
                 $mItem->format = '1080p';
             }
         }
-        $mItem->name = preg_replace('/(DVDRip|BRRip|BluRayRip|HDTV|dts|x264|xvid)/i', '', $mItem->name);
+
         $mItem->name = preg_replace('/(\[.*?\]|\(.*?\))/', ' ', $mItem->name);
-        $mItem->name = strtr($mItem->name, array('.' => ' ', '_' => ' ', '-' => ' ', '(' => '', ')' => '', '[' => '', ']' => ''));
+        $mItem->name = strtr($mItem->name, array('.' => ' ', '_' => ' ', '-' => ' ', '(' => '', ')' => '', '{' => '', '}' => '', '[' => '', ']' => ''));
+        $mItem->name = preg_replace('/(\b|^)(DVDRip|BRRip|BluRayRip|HDTV|dts|x264|xvid|chd|Bdrip|Ext|Proper|Besthd|Bluray)(\b|$)/i', '', $mItem->name);
+
         $match = array();
         if (preg_match('/[1-2]\d\d\d/', $mItem->name, $match) > 0) {
             $mItem->year = $match[0];
@@ -42,20 +44,30 @@ class Utils
         }
         $mItem->name = preg_replace('/\s+/', ' ', $mItem->name);
         $mItem->name = trim(ucwords($mItem->name));
+
+        if (isset($GLOBALS['NAME_PATCHING'][$mItem->name])) {
+            $newName = $GLOBALS['NAME_PATCHING'][$mItem->name];
+            if ($GLOBALS['DEBUG']) {
+                echo 'Name Exception Found, Replacing: ' . $mItem->name . ' => ' . $newName . "\n";
+            }
+            $mItem->name = $newName;
+        }
     }
 
     public static function downloadThumbnail($url, $targetFile)
     {
         if ($GLOBALS['DEBUG']) {
-            echo "Downloading file: $url\n";
+            echo "[+] Download File: $url\n";
         }
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_HEADER, 0);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_BINARYTRANSFER, 1);
-        $raw = curl_exec($ch);
-        curl_close($ch);
-        file_put_contents($targetFile, $raw);
+        if ($GLOBALS['DRY_RUN'] === false) {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_HEADER, 0);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt($ch, CURLOPT_BINARYTRANSFER, 1);
+            $raw = curl_exec($ch);
+            curl_close($ch);
+            file_put_contents($targetFile, $raw);
+        }
     }
 
     public static function openSubtitlesHash($file)
@@ -118,5 +130,26 @@ class Utils
     {
         $lastDot = strrpos($path, '.');
         return substr($path, 0, $lastDot) . '.' . $newExtension;
+    }
+
+    public static function getValidFileSystemString($orignal)
+    {
+        $output = strtr($orignal, array('?' => '',
+            '[' => '(',
+            ']' => ')',
+            '/' => '-',
+            '\\' => '-',
+            '=' => ' ',
+            '+' => ' ',
+            '<' => ' ',
+            '>' => ' ',
+            ':' => '',
+            ';' => '-',
+            '"' => '\'',
+            ',' => ' ',
+            '*' => ' ',
+            '|' => '-'));
+        $output = preg_replace('/\s+/', ' ', $output);
+        return trim($output, ' _.');
     }
 }

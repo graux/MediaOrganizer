@@ -12,7 +12,7 @@ class MediaItemTest extends PHPUnit_Framework_TestCase
      */
     protected function setUp()
     {
-        
+
     }
 
     /**
@@ -21,35 +21,51 @@ class MediaItemTest extends PHPUnit_Framework_TestCase
      */
     protected function tearDown()
     {
-        
+
     }
 
     /**
      * @covers MediaItem::createMediaItem
      */
-    public function testCreateMediaItem()
+    public function testCreateMediaItemSerie()
     {
         $mItemSeries = MediaItem::createMediaItem('/tmp/The.Big.Bang.Theory_s06e01_DIMENSION_[720p].mkv');
         $this->assertInstanceOf('MediaItemSeries', $mItemSeries);
-        $mItemMovie = MediaItem::createMediaItem('/var/tmp/test.new/The.Dark.Knight.Rises-(2012)-[1080p].RELEASE.mkv');
-        $this->assertInstanceOf('MediaItemMovie', $mItemMovie);
 
         $tvdb = TvDbMetadataManager::getInstance();
         $tvdb->fetchMediaItemData($mItemSeries);
         $this->assertNotNull($mItemSeries->posterUrl);
-        
-        print_r($mItemSeries);
-        
+
+        return $mItemSeries;
+    }
+
+    public function testCreateMediaItemMovie()
+    {
+        $mItemMovie = MediaItem::createMediaItem('/var/tmp/test.new/North By Northwest [50th Anniversary SE].1959.BRRip.XviD-VLiS.avi');
+        $this->assertInstanceOf('MediaItemMovie', $mItemMovie);
+        $this->assertEquals(strtolower($mItemMovie->name), 'north by northwest');
+
+        $mItemMovie = MediaItem::createMediaItem('/var/tmp/test.new/El secreto de sus ojos [BDrip m-720p].mkv');
+        $this->assertInstanceOf('MediaItemMovie', $mItemMovie);
+        $this->assertEquals(strtolower($mItemMovie->name), 'el secreto de sus ojos');
+        $tmdb = MovieDbMetadataManager::getInstance();
+        $tmdb->fetchMediaItemData($mItemMovie);
+        $this->assertEquals(strtolower($mItemMovie->originalTitle), 'el secreto de sus ojos');
+
+        $mItemMovie = MediaItem::createMediaItem('/var/tmp/test.new/The.Dark.Knight.Rises-(2012)-[1080p].RELEASE.mkv');
+        $this->assertInstanceOf('MediaItemMovie', $mItemMovie);
+
         $tmdb = MovieDbMetadataManager::getInstance();
         $tmdb->fetchMediaItemData($mItemMovie);
         $this->assertNotNull($mItemMovie->posterUrl);
-        
+
         return $mItemMovie;
     }
 
+
     /**
      * @covers MediaItem::getYear
-     * @depends testCreateMediaItem
+     * @depends testCreateMediaItemMovie
      * @param MediaItem $mediaItem
      */
     public function testGetYear($mediaItem)
@@ -57,5 +73,20 @@ class MediaItemTest extends PHPUnit_Framework_TestCase
         $expected = '2012';
         $actual = $mediaItem->getYear();
         $this->assertEquals($expected, $actual);
+    }
+
+    /**
+     * @covers MediaItemMovie::getMetadata
+     * @depends testCreateMediaItemMovie
+     * @param MediaItem $mediaItem
+     */
+    public function testGetMetadataMovie($mediaItem)
+    {
+        $xmlRaw = $mediaItem->getMetadata();
+
+        $xml = simplexml_load_string($xmlRaw);
+        $this->assertEquals('The Dark Knight Rises', (string)$xml->title);
+        $this->assertContains('Christian Bale', $xmlRaw);
+        $this->assertContains('Christopher Nolan', (string)$xml->director);
     }
 }
