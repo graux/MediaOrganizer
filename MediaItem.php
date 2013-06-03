@@ -7,6 +7,9 @@
  */
 abstract class MediaItem
 {
+    const REGEX_SERIES = '/^(?P<Name>.*?)(s|S)\(?(?P<Season>\d\d)_?(e|E)(?P<Episode>\d\d)\)?.*?(?P<Format>(720p)|(1080p))?.*?\.[a-z0-9]{1,4}$/';
+    const REGEX_MOVIES = '/^(?P<Name>.*?)(\(?(?P<Year>\d\d\d\d)\)?)(.*?)(?P<Format>(720p)|(1080p))?(.*?)\.[a-z0-9]{1,4}$/';
+    public static $mediaSubtitlesExtensions = array('srt', 'ass', 'ssa', 'sub', 'smi');
     public $filePath = null;
     public $year = null;
     public $name = null;
@@ -31,11 +34,6 @@ abstract class MediaItem
     public $error = false;
     public $skip = false;
 
-    const REGEX_SERIES = '/^(?P<Name>.*?)(s|S)\(?(?P<Season>\d\d)_?(e|E)(?P<Episode>\d\d)\)?.*?(?P<Format>(720p)|(1080p))?.*?\.[a-z0-9]{1,4}$/';
-    const REGEX_MOVIES = '/^(?P<Name>.*?)(\(?(?P<Year>\d\d\d\d)\)?)(.*?)(?P<Format>(720p)|(1080p))?(.*?)\.[a-z0-9]{1,4}$/';
-
-    public static $mediaSubtitlesExtensions = array('srt', 'ass', 'ssa', 'sub', 'smi');
-
     /**
      *
      * @param string $filePath
@@ -56,16 +54,18 @@ abstract class MediaItem
             if (!empty($matches['Format'])) {
                 $mediaItem->format = $matches['Format'];
             }
-        } else if (preg_match(self::REGEX_MOVIES, $fileName, $matches) > 0) {
-            $mediaItem = new MediaItemMovie();
-            $mediaItem->name = $matches['Name'];
-            $mediaItem->year = $matches['Year'];
-            if (!empty($matches['Format'])) {
-                $mediaItem->format = $matches['Format'];
-            }
         } else {
-            $mediaItem = new MediaItemMovie();
-            $mediaItem->name = substr($fileName, 0, strpos($fileName, '.'));
+            if (preg_match(self::REGEX_MOVIES, $fileName, $matches) > 0) {
+                $mediaItem = new MediaItemMovie();
+                $mediaItem->name = $matches['Name'];
+                $mediaItem->year = $matches['Year'];
+                if (!empty($matches['Format'])) {
+                    $mediaItem->format = $matches['Format'];
+                }
+            } else {
+                $mediaItem = new MediaItemMovie();
+                $mediaItem->name = substr($fileName, 0, strpos($fileName, '.'));
+            }
         }
         $mediaItem->filePath = $filePath;
         $mediaItem->extension = Utils::getFileExtension($mediaItem->filePath);
@@ -110,15 +110,6 @@ abstract class MediaItem
         return $this->year;
     }
 
-    /**
-     * @return string Fixed file name
-     */
-    public function getNewFilename()
-    {
-        $str = $this->toString() . '.' . $this->extension;
-        return Utils::getValidFileSystemString($str);
-    }
-
     public function getThumbPath()
     {
         $extension = empty($GLOBALS['THUMB_EXTENSION']) ? 'jpg' : $GLOBALS['THUMB_EXTENSION'];
@@ -128,6 +119,20 @@ abstract class MediaItem
     public function getMetadataPath()
     {
         return Utils::changeExtension($this->filePath, 'xml');
+    }
+
+    public function getSubtitlePath($extension = 'srt')
+    {
+        return Utils::changeExtension($this->filePath, $extension);
+    }
+
+    /**
+     * @return string Fixed file name
+     */
+    public function getNewFilename()
+    {
+        $str = $this->toString() . '.' . $this->extension;
+        return Utils::getValidFileSystemString($str);
     }
 
     /**

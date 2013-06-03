@@ -20,20 +20,6 @@ class MediaItemSeries extends MediaItem
 
     }
 
-    public function getEpisodeKey()
-    {
-        return 'S' . sprintf('%02d', $this->season) . 'E' . sprintf('%02d', $this->episode);
-    }
-
-    public function toString()
-    {
-        if (!empty($this->episodeTitle)) {
-            return $this->title . ' - ' . $this->getEpisodeKey() . ' - ' . $this->episodeTitle;
-        } else {
-            return $this->title . ' - ' . $this->getEpisodeKey();
-        }
-    }
-
     public function getFolderStructure()
     {
         $dirSeries = empty($GLOBALS['CREATE_SERIES_DIRECTORY']) ? true : $GLOBALS['CREATE_SERIES_DIRECTORY'] !== false;
@@ -94,6 +80,22 @@ class MediaItemSeries extends MediaItem
         }
 
         return $details->asXML();
+    }
+
+    public function toString()
+    {
+        if (!empty($this->episodeTitle)) {
+            return $this->title . ' - ' . $this->getEpisodeKey() . ' - ' . $this->episodeTitle;
+        } elseif (!empty($this->title)) {
+            return $this->title . ' - ' . $this->getEpisodeKey();
+        } else {
+            return $this->name . ' - ' . $this->getEpisodeKey();
+        }
+    }
+
+    public function getEpisodeKey()
+    {
+        return 'S' . sprintf('%02d', $this->season) . 'E' . sprintf('%02d', $this->episode);
     }
 
     public function getSeriesMetadata($basePath)

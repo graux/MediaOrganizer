@@ -21,26 +21,63 @@ require_once 'Utils.php';
 require_once 'MediaItem.php';
 require_once 'MovieDbMetadataManager.php';
 require_once 'TvDbMetadataManager.php';
+require_once 'SubDbMetadataManager.php';
 require_once 'MediaItemMovie.php';
 require_once 'MediaItemSeries.php';
 
-if (empty($argv[1])) {
-    $argv[1] = '/Users/Fran/Movies';
-}
-$targetDir = $argv[1];
+$shortOpts = array('s', 't:', 'h');
 
-require_once 'config.php';
+MediaOrganizer::showVersionInfo();
+
+$configFile = dirname(__FILE__) . '/config.php';
+if (file_exists($configFile) === false) {
+    error_log("ERROR: Missing config.php file...");
+    error_log("Please copy sample-config.php to config.php and adjust your settings.\n");
+    exit();
+}
+
+require_once $configFile;
+
+$parameters = getopt(implode('', $shortOpts));
+if ($parameters === false || isset($parameters['h'])) {
+    MediaOrganizer::showHelp($parameters === false);
+} elseif ($GLOBALS['DEBUG'] === true && isset($parameters['t']) === false) {
+    $parameters['t'] = '/Users/Fran/Movies';
+}
+$targetDir = $parameters['t'];
+$subtitleMode = isset($parameters['s']) ? true : false;
+$GLOBALS['$targetPath'] = $subtitleMode;
+
+if ($GLOBALS['DEBUG'] === true) {
+    echo "\nRunning MediaOrganizer, target directory: $targetDir\n";
+}
 
 date_default_timezone_set($GLOBALS['TIMEZONE']);
 
 if (file_exists($targetDir)) {
     $targetDir = realpath($targetDir);
     $mediaManager = new MediaOrganizer($targetDir);
-    $mediaManager->fetchMediaItemsData();
-    $files = $mediaManager->getMediaItems();
-    $mediaManager->organizeFiles($GLOBALS['SERIES_FOLDER'], $GLOBALS['MOVIES_FOLDER']);
-    $mediaManager->downloadPosters();
-    $mediaManager->generateMetadata();
+    $files = array();
+    if ($subtitleMode === false) {
+        $mediaManager->fetchMediaItemsData();
+        $files = $mediaManager->getMediaItems();
+        if ($GLOBALS['MOVE_FILES'] === true) {
+            $mediaManager->organizeFiles($GLOBALS['SERIES_FOLDER'], $GLOBALS['MOVIES_FOLDER']);
+        }
+        if ($GLOBALS['DOWNLOAD_POSTERS'] === true) {
+            $mediaManager->downloadPosters();
+        }
+        $mediaManager->generateMetadata();
+        if ($GLOBALS['DOWNLOAD_SUBTITLES'] === true) {
+            $mediaManager->downloadSubtitles();
+        }
+    } else {
+        $files = $mediaManager->getMediaItems();
+        if ($GLOBALS['DEBUG'] === true) {
+            echo "\nSubtitle only mode enabled...\n";
+        }
+        $mediaManager->downloadSubtitles();
+    }
     echo "\nFiles Processed: \n";
     $errorItems = array();
     $skippedItems = array();
@@ -75,9 +112,12 @@ if (file_exists($targetDir)) {
  */
 class MediaOrganizer
 {
+    const VERSION = '1.2';
     private $baseDir = null;
     private $mediaExtensions = array('avi', 'ogv', 'flv', 'mpg', 'xvid', 'mkv', 'mov', 'mp4', 'm4v');
+    /** @var string[] */
     private $mediaFiles = array();
+    /** @var MediaItem[] */
     private $mediaItems = array();
     private $downloadedFiles = array();
 
@@ -88,12 +128,59 @@ class MediaOrganizer
         $this->scanForMediaFiles($this->baseDir);
         if (empty($this->mediaFiles)) {
             echo "No Media Items found\n";
-        } else if ($GLOBALS['DEBUG']) {
-            echo "\n";
+        } else {
+            if ($GLOBALS['DEBUG']) {
+                echo "\n";
+            }
         }
         foreach ($this->mediaFiles as $file) {
             $this->mediaItems[] = MediaItem::createMediaItem($file);
         }
+    }
+
+    private function scanForMediaFiles($dir)
+    {
+        $files = scandir($dir);
+
+        foreach ($files as $file) {
+            if (substr($file, 0, 1) === '.') {
+                continue;
+            }
+            $fullPath = realpath($dir) . '/' . $file;
+            if (is_dir($fullPath)) {
+                $this->scanForMediaFiles($fullPath);
+            } else {
+                $extension = Utils::getFileExtension($file);
+                if (in_array($extension, $this->mediaExtensions)) {
+                    if (stripos($fullPath, 'sample') === false) {
+                        if ($GLOBALS['DEBUG'] === true) {
+                            echo "Media Item Found: $file\n";
+                        }
+                        $this->mediaFiles[] = $fullPath;
+                    }
+                }
+            }
+        }
+    }
+
+    public static function showVersionInfo()
+    {
+        echo("\nMedia Organizer " . MediaOrganizer::VERSION . "\n");
+        echo("Francisco Grau - 2013 - GPL3 - http://github.com/graux/MediaOrganizer\n");
+    }
+
+    public static function showHelp($paramError)
+    {
+        if ($paramError === true) {
+            error_log("\nInvalid Parameters.");
+        }
+        error_log("\nUsage: php MediaOrganizer.php --target [DIR]\n");
+        error_log("Parameters:");
+        error_log("  -t\t\t\tDefines the target directory to search files.");
+        error_log("  -h\t\t\tDisplays this help.");
+        error_log("  -s\t\t\tSearches for subtitles only.");
+        error_log("\n");
+        exit();
     }
 
     public function fetchMediaItemsData()
@@ -133,31 +220,6 @@ class MediaOrganizer
         }
         if ($GLOBALS['DEBUG']) {
             echo "\n\nMetadata for " . ($totalItems - ($errors + $skipped)) . " of " . $totalItems . " items found.\n\n";
-        }
-    }
-
-    private function scanForMediaFiles($dir)
-    {
-        $files = scandir($dir);
-
-        foreach ($files as $file) {
-            if (substr($file, 0, 1) === '.') {
-                continue;
-            }
-            $fullPath = realpath($dir) . '/' . $file;
-            if (is_dir($fullPath)) {
-                $this->scanForMediaFiles($fullPath);
-            } else {
-                $extension = Utils::getFileExtension($file);
-                if (in_array($extension, $this->mediaExtensions)) {
-                    if (stripos($fullPath, 'sample') === false) {
-                        if ($GLOBALS['DEBUG'] === true) {
-                            echo "Media Item Found: $file\n";
-                        }
-                        $this->mediaFiles[] = $fullPath;
-                    }
-                }
-            }
         }
     }
 
@@ -202,7 +264,7 @@ class MediaOrganizer
                 $this->moveFile($mItem->filePath, $itemPath);
                 foreach ($mItem->subtitles as $sub) {
                     $itemExt = Utils::getFileExtension($sub);
-                    $targetSub = Utils::changeExtension($itemPath, $itemExt);
+                    $targetSub = $mItem->getSubtitlePath($itemExt);
                     $this->moveFile($sub, $targetSub);
                 }
                 $oldDir = dirname($mItem->filePath);
@@ -257,26 +319,6 @@ class MediaOrganizer
         }
     }
 
-    private function copyFile($source, $target)
-    {
-        if ($GLOBALS['DRY_RUN'] === false) {
-            copy($source, $target);
-        }
-        if ($GLOBALS['DEBUG'] === true) {
-            echo '[*] CopyFile: ' . $source . ' => ' . $target . "\n";
-        }
-    }
-
-    private function createFile($filePath, $contents)
-    {
-        if ($GLOBALS['DRY_RUN'] === false) {
-            file_put_contents($filePath, $contents);
-        }
-        if ($GLOBALS['DEBUG'] === true) {
-            echo '[+] CreateFile: ' . $filePath . ' : ' . substr($contents, 0, 100) . "\n";
-        }
-    }
-
     public function downloadPosters()
     {
         foreach ($this->mediaItems as $mItem) {
@@ -327,6 +369,16 @@ class MediaOrganizer
         }
     }
 
+    private function copyFile($source, $target)
+    {
+        if ($GLOBALS['DRY_RUN'] === false) {
+            copy($source, $target);
+        }
+        if ($GLOBALS['DEBUG'] === true) {
+            echo '[*] CopyFile: ' . $source . ' => ' . $target . "\n";
+        }
+    }
+
     public function generateMetadata()
     {
         foreach ($this->mediaItems as $mItem) {
@@ -353,6 +405,46 @@ class MediaOrganizer
                         $seriesMetadata = $mItem->getSeriesMetadata($dir);
                         $this->createFile($seriesMetadataFilePath, $seriesMetadata);
                     }
+                }
+            }
+        }
+    }
+
+    private function createFile($filePath, $contents)
+    {
+        if ($GLOBALS['DRY_RUN'] === false) {
+            file_put_contents($filePath, $contents);
+        }
+        if ($GLOBALS['DEBUG'] === true) {
+            echo '[+] CreateFile: ' . $filePath . ' : ' . substr($contents, 0, 100) . "\n";
+        }
+    }
+
+    public function downloadSubtitles()
+    {
+        $subDb = SubDbMetadataManager::getInstance();
+        $subLang = $GLOBALS['SUBTITLES_LANGUAGE'];
+        if ($GLOBALS['DEBUG'] === true) {
+            echo "\nSearching and downloading Subtitles...\n\n";
+        }
+        foreach ($this->mediaItems as $mItem) {
+            if ($mItem->error === true || $mItem->skip === true) {
+                continue;
+            }
+            if ($GLOBALS['DEBUG'] === true) {
+                echo '[?] Searching Subtitle for: ' . $mItem->toString() . " ...";
+            }
+            $subtitle = $subDb->fetchMediaItemSubtitle($mItem->filePath, $subLang);
+            if (!is_null($subtitle)) {
+                $targetPath = $mItem->getSubtitlePath();
+                echo "\n";
+                $this->createFile($targetPath, $subtitle);
+                if ($GLOBALS['subtitleMode'] === true) {
+                    $mItem->metadataProcessed = true;
+                }
+            } else {
+                if ($GLOBALS['DEBUG'] === true) {
+                    echo "\n";
                 }
             }
         }

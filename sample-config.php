@@ -20,6 +20,8 @@ $GLOBALS['WDLIVETV_FOLDERS'] = true;
 $GLOBALS['NUM_BACKDROPS'] = 5;
 $GLOBALS['DOWNLOAD_BACKDROPS'] = true;
 $GLOBALS['TIMEZONE'] = 'Europe/Madrid';
+$GLOBALS['DOWNLOAD_SUBTITLES'] = true;
+$GLOBALS['SUBTITLES_LANGUAGE'] = 'en';
 
 $GLOBALS['NAME_PATCHING'] = array(
     'Shameless US' => 'Shameless',

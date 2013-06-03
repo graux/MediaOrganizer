@@ -16,7 +16,7 @@ class MediaItemMovie extends MediaItem
 
     public function toString($includeTagLine = false)
     {
-        $str = $this->title . ' (' . $this->getYear() . ')';
+        $str = (empty($this->title) ? $this->name : $this->title) . ' (' . $this->getYear() . ')';
         if ($includeTagLine == true && !empty($this->tagline)) {
             $str .= ' - ' . $this->tagline;
         }
