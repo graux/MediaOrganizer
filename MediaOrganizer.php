@@ -431,6 +431,13 @@ class MediaOrganizer
             if ($mItem->error === true || $mItem->skip === true) {
                 continue;
             }
+            $targetPath = $mItem->getSubtitlePath();
+            if (file_exists($targetPath)) {
+                if ($GLOBALS['subtitleMode'] === true) {
+                    $mItem->skip = true;
+                }
+                continue;
+            }
             if ($GLOBALS['DEBUG'] === true) {
                 echo '[?] Searching Subtitle for: ' . $mItem->toString() . " ...";
             }
