@@ -18,10 +18,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 require_once 'Utils.php';
+require_once 'NetManager.php';
 require_once 'MediaItem.php';
 require_once 'MovieDbMetadataManager.php';
 require_once 'TvDbMetadataManager.php';
 require_once 'SubDbMetadataManager.php';
+require_once 'OpenSubtitlesMetadataManager.php';
 require_once 'MediaItemMovie.php';
 require_once 'MediaItemSeries.php';
 
@@ -112,7 +114,7 @@ if (file_exists($targetDir)) {
  */
 class MediaOrganizer
 {
-    const VERSION = '1.2';
+    const VERSION = '1.3';
     private $baseDir = null;
     private $mediaExtensions = array('avi', 'ogv', 'flv', 'mpg', 'xvid', 'mkv', 'mov', 'mp4', 'm4v');
     /** @var string[] */
@@ -423,6 +425,7 @@ class MediaOrganizer
     public function downloadSubtitles()
     {
         $subDb = SubDbMetadataManager::getInstance();
+        $openSub = OpenSubtitlesMetadataManager::getInstance();
         $subLang = $GLOBALS['SUBTITLES_LANGUAGE'];
         if ($GLOBALS['DEBUG'] === true) {
             echo "\nSearching and downloading Subtitles...\n\n";
@@ -442,6 +445,9 @@ class MediaOrganizer
                 echo '[?] Searching Subtitle for: ' . $mItem->toString() . " ...";
             }
             $subtitle = $subDb->fetchMediaItemSubtitle($mItem->filePath, $subLang);
+            if (is_null($subtitle)) {
+                $subtitle = $openSub->fetchMediaItemSubtitle($mItem->filePath, $subLang);
+            }
             if (!is_null($subtitle)) {
                 $targetPath = $mItem->getSubtitlePath();
                 echo "\n";

@@ -22,20 +22,31 @@ class Utils
         if (strpos($mItem->name, '720') > 0) {
             $mItem->name = preg_replace('/720p?/', '', $mItem->name);
             $mItem->format = '720p';
-        } else if (strpos($mItem->name, '1080') > 0) {
-            $mItem->name = preg_replace('/1080p?/', '', $mItem->name);
-            $mItem->format = '1080p';
         } else {
-            if (strpos($mItem->filePath, '720') !== false) {
-                $mItem->format = '720p';
-            } else if (strpos($mItem->filePath, '1080') !== false) {
+            if (strpos($mItem->name, '1080') > 0) {
+                $mItem->name = preg_replace('/1080p?/', '', $mItem->name);
                 $mItem->format = '1080p';
+            } else {
+                if (strpos($mItem->filePath, '720') !== false) {
+                    $mItem->format = '720p';
+                } else {
+                    if (strpos($mItem->filePath, '1080') !== false) {
+                        $mItem->format = '1080p';
+                    }
+                }
             }
         }
 
         $mItem->name = preg_replace('/(\[.*?\]|\(.*?\))/', ' ', $mItem->name);
-        $mItem->name = strtr($mItem->name, array('.' => ' ', '_' => ' ', '-' => ' ', '(' => '', ')' => '', '{' => '', '}' => '', '[' => '', ']' => ''));
-        $mItem->name = preg_replace('/(\b|^)(DVDRip|BRRip|BluRayRip|HDTV|dts|x264|xvid|chd|Bdrip|Ext|Proper|Besthd|Bluray|Episode(\s\d+(\sand\d+)?)?)(\b|$)/i', '', $mItem->name);
+        $mItem->name = strtr(
+            $mItem->name,
+            array('.' => ' ', '_' => ' ', '-' => ' ', '(' => '', ')' => '', '{' => '', '}' => '', '[' => '', ']' => '')
+        );
+        $mItem->name = preg_replace(
+            '/(\b|^)(DVDRip|BRRip|BluRayRip|HDTV|dts|x264|xvid|chd|Bdrip|Ext|Proper|Besthd|Bluray|Episode(\s\d+(\sand\d+)?)?)(\b|$)/i',
+            '',
+            $mItem->name
+        );
 
         $match = array();
         if (preg_match('/[1-2]\d\d\d/', $mItem->name, $match) > 0) {
@@ -75,10 +86,12 @@ class Utils
         $handle = fopen($file, "rb");
         $fsize = filesize($file);
 
-        $hash = array(3 => 0,
+        $hash = array(
+            3 => 0,
             2 => 0,
             1 => ($fsize >> 16) & 0xFFFF,
-            0 => $fsize & 0xFFFF);
+            0 => $fsize & 0xFFFF
+        );
 
         for ($i = 0; $i < 8192; $i++) {
             $tmp = self::readUint64($handle);
@@ -134,22 +147,33 @@ class Utils
 
     public static function getValidFileSystemString($orignal)
     {
-        $output = strtr($orignal, array('?' => '',
-            '[' => '(',
-            ']' => ')',
-            '/' => '-',
-            '\\' => '-',
-            '=' => ' ',
-            '+' => ' ',
-            '<' => ' ',
-            '>' => ' ',
-            ':' => '',
-            ';' => '-',
-            '"' => '\'',
-            ',' => ' ',
-            '*' => ' ',
-            '|' => '-'));
+        $output = strtr(
+            $orignal,
+            array(
+                '?' => '',
+                '[' => '(',
+                ']' => ')',
+                '/' => '-',
+                '\\' => '-',
+                '=' => ' ',
+                '+' => ' ',
+                '<' => ' ',
+                '>' => ' ',
+                ':' => '',
+                ';' => '-',
+                '"' => '\'',
+                ',' => ' ',
+                '*' => ' ',
+                '|' => '-'
+            )
+        );
         $output = preg_replace('/\s+/', ' ', $output);
         return trim($output, ' _.');
+    }
+
+    public static function gzDecode($contents)
+    {
+        return gzinflate(substr($contents, 10, -8));
+
     }
 }

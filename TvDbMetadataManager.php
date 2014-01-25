@@ -7,24 +7,19 @@
  */
 class TvDbMetadataManager
 {
-    private $ApiKey = null;
-    private static $instance = null;
-    private $mirrors = array();
-    private $activeMirror = null;
-
     const URL_MIRRORS = 'http://www.thetvdb.com/api/{KEY}/mirrors.xml';
     const URL_SEARCH = 'http://www.thetvdb.com/api/GetSeries.php?seriesname={NAME}';
     const URL_SEARCH_BYID = 'http://www.thetvdb.com/api/GetSeriesByRemoteID.php?imdbid={ID}';
-    const URL_SEARCH_IMDB = 'http://www.imdb.com/search/title?title={NAME}&title_type=tv_series';
-    const REGEX_SEARCH_IMDB_ID = '/\/title\/(?P<ID>tt\d{7,7})\//';
     const URL_SERIESDATA = '{MIRROR}/api/{KEY}/series/{ID}/en.xml';
     const URL_SERIESEPISODE = '{MIRROR}/api/{KEY}/series/{ID}/default/{SEASON}/{EPISODE}/en.xml';
     const URL_SERIESPOSTERS = '{MIRROR}/api/{KEY}/series/{ID}/banners.xml';
     const URL_POSTER = '{MIRROR}/banners/{POSTER}';
-
-    private static $ImdbCache = array();
+    private static $instance = null;
     private static $SeriesCache = array();
     private static $SeriesDataCache = array();
+    private $ApiKey = null;
+    private $mirrors = array();
+    private $activeMirror = null;
     private $seriesData = array();
 
     private function __construct()
@@ -41,6 +36,26 @@ class TvDbMetadataManager
         }
     }
 
+    private function requestXml($url)
+    {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, false);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: text/xml"));
+        curl_setopt(
+            $ch,
+            CURLOPT_USERAGENT,
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.7; rv:15.0) Gecko/20100101 Firefox/15.0.1'
+        );
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        //error_log('XML for : '.$url."\n".$response."\n");
+
+        return simplexml_load_string($response);
+    }
+
     /**
      *
      * @return TvDbMetadataManager
@@ -51,36 +66,6 @@ class TvDbMetadataManager
             self::$instance = new TvDbMetadataManager();
         }
         return self::$instance;
-    }
-
-    private function requestXml($url)
-    {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-        curl_setopt($ch, CURLOPT_HEADER, FALSE);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: text/xml"));
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.7; rv:15.0) Gecko/20100101 Firefox/15.0.1');
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        //error_log('XML for : '.$url."\n".$response."\n");
-
-        return simplexml_load_string($response);
-    }
-
-    private function requestUrl($url)
-    {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-        curl_setopt($ch, CURLOPT_HEADER, FALSE);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array("Accept: text/xml"));
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.7; rv:15.0) Gecko/20100101 Firefox/15.0.1');
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        return $response;
     }
 
     /**
@@ -94,25 +79,7 @@ class TvDbMetadataManager
           $searchResults = $this->requestXml($searchUrl);
          */
 
-        $searchUrl = str_replace('{NAME}', urlencode($mediaItem->name), self::URL_SEARCH_IMDB);
-        if (!empty($mediaItem->year)) {
-            $searchUrl .= '&year=' . $mediaItem->year;
-        }
-
-        if (empty(TvDbMetadataManager::$ImdbCache[$searchUrl])) {
-            $searchHtml = $this->requestUrl($searchUrl);
-            $matches = array();
-            if (preg_match(self::REGEX_SEARCH_IMDB_ID, $searchHtml, $matches) == false) {
-                return error_log("Cannot find Metadata for " . $mediaItem->filePath . ' (' . $searchUrl . ')' . "\n");
-            }
-            $mediaItem->imdbId = $matches['ID'];
-            if ($GLOBALS['DEBUG']) {
-                echo('IMDB ID: ' . $mediaItem->imdbId . "\n");
-            }
-            TvDbMetadataManager::$ImdbCache[$searchUrl] = $mediaItem->imdbId;
-        } else {
-            $mediaItem->imdbId = TvDbMetadataManager::$ImdbCache[$searchUrl];
-        }
+        $mediaItem->fetchImdbId();
 
         $searchUrl = str_replace('{ID}', urlencode($mediaItem->imdbId), self::URL_SEARCH_BYID);
         if (empty(TvDbMetadataManager::$SeriesCache[$searchUrl])) {
@@ -153,13 +120,18 @@ class TvDbMetadataManager
                 $mediaItem->runTime = intval($seriesData->Runtime);
 
                 $poster = (string)$seriesData->poster;
-                $mediaItem->posterUrl = str_replace('{MIRROR}', $this->activeMirror, str_replace('{POSTER}', $poster, self::URL_POSTER));
+                $mediaItem->posterUrl = str_replace(
+                    '{MIRROR}',
+                    $this->activeMirror,
+                    str_replace('{POSTER}', $poster, self::URL_POSTER)
+                );
 
                 if (empty($this->seriesData[$mediaItem->id])) {
                     $this->seriesData[$mediaItem->id] = array(
                         'Id' => $mediaItem->id,
                         'Title' => $mediaItem->title,
-                        'Backdrops' => array());
+                        'Backdrops' => array()
+                    );
                 }
                 $key = $mediaItem->getEpisodeKey();
                 $series = $this->seriesData[$mediaItem->id];

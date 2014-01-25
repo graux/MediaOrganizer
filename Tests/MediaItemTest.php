@@ -39,6 +39,18 @@ class MediaItemTest extends PHPUnit_Framework_TestCase
         return $mItemSeries;
     }
 
+    public function testCreateMediaItemSerieSegmentationFault()
+    {
+        $mItemSeries = MediaItem::createMediaItem('/tmp/Arrow.S02E01.720p.HDTV.X264-DIMENSION.mkv');
+        $this->assertInstanceOf('MediaItemSeries', $mItemSeries);
+
+        $tvdb = TvDbMetadataManager::getInstance();
+        $tvdb->fetchMediaItemData($mItemSeries);
+        $this->assertNotNull($mItemSeries->posterUrl);
+
+        return $mItemSeries;
+    }
+
     public function testCreateMediaItemMovie()
     {
         $mItemMovie = MediaItem::createMediaItem('/var/tmp/test.new/North By Northwest [50th Anniversary SE].1959.BRRip.XviD-VLiS.avi');

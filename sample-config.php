@@ -5,6 +5,8 @@ $GLOBALS['SERIES_FOLDER'] = '/Media/Volumes/Series';
 $GLOBALS['FOLDER_EXCLUDES'] = array('Torrents', '_config');
 $GLOBALS['THEMOVIEDB_KEY'] = '[THEMOVIEDB_KEY]';
 $GLOBALS['THETVDB_KEY'] = '[THETVDB_KEY]';
+$GLOBALS['OPENSUBTITLES_USERNAME'] = '[OS_USERNAME]';
+$GLOBALS['OPENSUBTITLES_PASSWORD'] = '[OS_PASSWORD]';
 
 $GLOBALS['DEBUG'] = true;
 $GLOBALS['DRY_RUN'] = true;
@@ -26,5 +28,7 @@ $GLOBALS['SUBTITLES_LANGUAGE'] = 'en';
 $GLOBALS['NAME_PATCHING'] = array(
     'Shameless US' => 'Shameless',
     'Avatar The Legend Of Korra' => 'The Legend Of Korra',
-    'Wilfred US' => 'Wilfred'
+    'Wilfred US' => 'Wilfred',
+    'Lois & Clark - The New Adventures of Superman' => 'Lois And Clark',
+    'Marvels Agents Of S H I E L D' => 'Agents of S.H.I.E.L.D.'
 );

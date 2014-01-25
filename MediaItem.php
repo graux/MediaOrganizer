@@ -9,7 +9,11 @@ abstract class MediaItem
 {
     const REGEX_SERIES = '/^(?P<Name>.*?)(s|S)\(?(?P<Season>\d\d)_?(e|E)(?P<Episode>\d\d)\)?.*?(?P<Format>(720p)|(1080p))?.*?\.[a-z0-9]{1,4}$/';
     const REGEX_MOVIES = '/^(?P<Name>.*?)(\(?(?P<Year>\d\d\d\d)\)?)(.*?)(?P<Format>(720p)|(1080p))?(.*?)\.[a-z0-9]{1,4}$/';
+    const URL_SEARCH_IMDB = 'http://www.imdb.com/search/title?title={NAME}&title_type=tv_series';
+    const REGEX_SEARCH_IMDB_RESULTS = '/<table class="results">(?P<RESULTS>(.|\n)*?)<\/table>/';
+    const REGEX_SEARCH_IMDB_ID = '/\/title\/(?P<ID>tt\d{7,7})\//';
     public static $mediaSubtitlesExtensions = array('srt', 'ass', 'ssa', 'sub', 'smi');
+    private static $ImdbCache = array();
     public $filePath = null;
     public $year = null;
     public $name = null;
@@ -149,5 +153,39 @@ abstract class MediaItem
      * @return string XML Metadata for the current media item
      */
     abstract public function getMetadata();
+
+    public function fetchImdbId()
+    {
+        $searchUrl = str_replace('{NAME}', urlencode($this->name), MediaItem::URL_SEARCH_IMDB);
+        if (!empty($this->year)) {
+            $searchUrl .= '&year=' . $this->year;
+        }
+
+        if (empty(MediaItem::$ImdbCache[$searchUrl])) {
+            $searchHtml = NetManager::requestUrl($searchUrl);
+            $matches = array();
+            $pos = stripos($searchHtml, '<table class="results">');
+            if ($pos === false) {
+                return error_log("Cannot find Metadata for " . $this->filePath . ' (' . $searchUrl . ')' . "\n");
+            }
+            $results = substr($searchHtml, $pos);
+            $pos = stripos($results, '<div class="leftright">');
+            if ($pos !== false) {
+                $results = substr($results, 0, $pos);
+            }
+            if (preg_match(self::REGEX_SEARCH_IMDB_ID, $results, $matches) === 0) {
+                return error_log("Cannot find Metadata for " . $this->filePath . ' (' . $searchUrl . ')' . "\n");
+            }
+            $this->imdbId = $matches['ID'];
+            if ($GLOBALS['DEBUG']) {
+                echo('IMDB ID: ' . $this->imdbId . "\n");
+            }
+            MediaItem::$ImdbCache[$searchUrl] = $this->imdbId;
+        } else {
+            $this->imdbId = MediaItem::$ImdbCache[$searchUrl];
+        }
+
+        return $this->imdbId;
+    }
 }
 
