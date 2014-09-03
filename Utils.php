@@ -7,6 +7,7 @@
  */
 class Utils
 {
+    private static $downloadedFiles = array();
 
     public static function getFileExtension($file)
     {
@@ -67,17 +68,25 @@ class Utils
 
     public static function downloadThumbnail($url, $targetFile)
     {
-        if ($GLOBALS['DEBUG']) {
-            echo "[+] Download File: $url\n";
-        }
         if ($GLOBALS['DRY_RUN'] === false) {
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_HEADER, 0);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-            curl_setopt($ch, CURLOPT_BINARYTRANSFER, 1);
-            $raw = curl_exec($ch);
-            curl_close($ch);
-            file_put_contents($targetFile, $raw);
+            if (isset($downloadedFiles[$url]) && file_exists($downloadedFiles[$url])) {
+                if ($GLOBALS['DEBUG']) {
+                    echo "[*] File already downloaded, copying: $url\n";
+                }
+                copy($downloadedFiles[$url], $targetFile);
+            } else {
+                if ($GLOBALS['DEBUG']) {
+                    echo "[+] Download File: $url\n";
+                }
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_HEADER, 0);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                curl_setopt($ch, CURLOPT_BINARYTRANSFER, 1);
+                $raw = curl_exec($ch);
+                curl_close($ch);
+                file_put_contents($targetFile, $raw);
+                $downloadedFiles[$url] = $targetFile;
+            }
         }
     }
 
